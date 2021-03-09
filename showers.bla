@@ -1,0 +1,15 @@
+-- show various things on TERMINAL
+showregs
+showmem
+say na
+say yo!
+say nani
+say culo
+say a
+say cix
+say dio
+
+say bla --bla is an expr
+say mah -- nonexistent - just to test
+say dqe --dqe is an expr
+say dbl
