@@ -13,4 +13,4 @@
 
 #gcc -D TEST -D BAOTIME_LONGLONG_ENABLED -ansi -g0 -O3 -Wall -Wextra -Wshadow -Wno-long-long -Wvla -pedantic-errors -o blak00 blak00.c -I ~/s/cBao && ./blak00
 #gcc -ansi -g0 -O3 -Wall -Wextra -Wshadow -Wvla -pedantic-errors -o blak00 blak00.c -I ~/s/cBao && ./blak00
-gcc -ansi -g -static-libasan -fsanitize=address -O3 -Wall -Wextra -Wshadow -Wvla -pedantic-errors -o blak00 blak00.c -I ~/s/cBao && ./blak00
+gcc -ansi -g -static-libasan -fsanitize=address -O3 -Wall -Wextra -Wshadow -Wvla -pedantic-errors -o abc abc.c -I ~/s/cBao && ./abc test && ./abc showers

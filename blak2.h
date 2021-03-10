@@ -69,7 +69,7 @@ TOT 768 THIS ONE!!!
           - braids
           - physical modeling(audio)
      - tulpa: bel nome da usare, magari per definire una slave machine
-          
+
 */
 
 #ifndef _BLAK2_H_
@@ -88,13 +88,13 @@ extern "C" {
 #endif
 
 /*** DEFINES */
-#define BLAK_VERSION "2021c09-1029"
+#define BLAK_VERSION "2021c10-2241"
 
 #define BLAK_REG_NAME_LEN 4
 #define BLAK_REGISTERS_QTY 48
 #define BLAK_MAX_REGISTERS (REGISTERS_QTY-1)
 #define BLAK_MEM_SIZE 639 /* size of virtual memory */
-#define BLAK_MAX_MEM (MEM_SIZE-1) /* memory array range is [0..size-1] */
+#define BLAK_MAX_MEM (BLAK_MEM_SIZE-1) /* memory array range is [0..size-1] */
 
 /* TODO: ci devono essere dei defined anche all'interno del codice blak stesso, in modo da identificare su che piattaforma sto girando */
 #define BLAK_PLATFORM_WIN10
@@ -171,7 +171,7 @@ typedef enum __attribute__ ((__packed__)) valType_t_{ /* __packed__ keeps the si
 
      BLAK_REGISTERNAME_T, /* name of a register, mapped to nothing, name will follow in the bytecode */
      BLAK_REGISTERNUMBER_T, /* number of a register, mapped to regNum */
-     
+
      BLAK_LAMBDAARG_T, /* name of a lambda argument, mapped to nothing, name will follow in the bytecode */
 
      BLAK_TYPES_QTY /* just to count how many instructions I have at the moment */
@@ -221,11 +221,11 @@ typedef enum __attribute__ ((__packed__)) bytecode_t_{ /* __packed__ keeps the s
      BLAK_LOAD,
      BLAK_UNLOAD,
      BLAK_HCF,
-     
+
      BLAK_SET_NAME,
      BLAK_SET_TYPE,
      BLAK_SET_VALUE,
-     
+
      /* useful to know what type of raw value to expect next */
      BLAK_BYTE1, /* single byte */
      BLAK_BYTE2,
@@ -274,7 +274,7 @@ typedef enum __attribute__ ((__packed__)) bytecode_t_{ /* __packed__ keeps the s
      BLAK_CODING,
 
      BLAK_PRAGMA,
-     
+
      BLAK_NOP, /* no operation, just an empty op */
 
      BLAK_ENDOFBYTECODE, /* used to terminate a sequence of bytecodes, like the '\0' at the end of a string */
@@ -501,7 +501,8 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     reg[empty_register].value.addr = memPtr; /* the named register will point to the data I'm going to write to virtual mem */
                     /*bcp++;*/
                     for(;;){ /* write data into virtual mem */
-                         mem[memPtr]=byteCode[bcp]; /* cacca: not checking if there's enough space */
+			if(memPtr>BLAK_MAX_MEM){ break;} /* shitty error management */
+                         mem[memPtr]=byteCode[bcp]; /* kak cacca: not checking if there's enough space */
                          memPtr++; /* point to next free byte */
                          if(byteCode[bcp]==BLAK_ENDOFEXPR){
                               break;
@@ -519,7 +520,7 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
           else if(byteCode[bcp]==BLAK_UNDEFINE){ /* BLAK_UNDEFINE name */
                regName_t regName = {NIL, NIL, NIL, NIL}; /* it's a pointer, needs initialization */
                uint8_t regNum;
-               
+
                bcp++;
                readRegName(byteCode, &bcp, regName);
                     /*printf("==================== ");
@@ -534,11 +535,11 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     returnValue.type=BLAK_ERROR_FAIL_T;
                }
           } /* UNDEFINE name */
-          
+
           else if(byteCode[bcp]==BLAK_SET_NAME){ /* SET_NAME(regNum, name) */
                uint8_t regNum;
                uint8_t i;
-               
+
                bcp++;
                regNum=byteCode[bcp];
                bcp++;
@@ -551,21 +552,21 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                }
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_NAME(regNum, name) */
-          
+
           else if(byteCode[bcp]==BLAK_SET_TYPE){ /* SET_TYPE(regNum, type) */
                uint8_t regNum;
-               
+
                bcp++;
                regNum=byteCode[bcp];
                bcp++;
                reg[regNum].type=byteCode[bcp];
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_TYPE(regNum, type) */
-          
+
           else if(byteCode[bcp]==BLAK_SET_VALUE){ /* SET_VALUE(regNum, mode, val) */
                uint8_t regNum;
                bytecode_t mode;
-               
+
                bcp++;
                regNum=byteCode[bcp];
                bcp++;
@@ -585,7 +586,7 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                }
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_VALUE(regNum, mode, val) */
-          
+
           #ifdef BLAK_OUT_TERMINAL
                else if(byteCode[bcp]==BLAK_SAY){ /* print to screen */ /* cacca: forse questa presuppone l'esistenza di eval, ma eval quello vero? */
                     bcp++;
@@ -658,7 +659,7 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     uint32_t i; /* 32bits, so it can handle huuuuge memsizes */
                     uint8_t memString[17];
                     uint8_t widecharIndex;
-                    
+
                     memString[16]='\0'; /* terminate string */
                     printf("\n== VIRTUAL MEMORY (%u bytes) ptr:[%u]\n", BLAK_MEM_SIZE, memPtr);
                     /*printf("(00)(01)(02)(03)(04)(05)(06)(07)(08)(09)(10)(11)(12)(13)(14)(15)\n");*/

@@ -5,12 +5,12 @@
      - flag needRegnameT -- fer flaggare direttamente se avro bisogno o no di prependare BLAK_REGNAME_T ad un regname
 */
 
-#define ABC_VERSION "2021c09-1029"
+#define ABC_VERSION "2021c10-2204"
 
 /*** DEFINES */
      #define BLAK_BLA_MAX_LINE_LEN 80
-     #define BLAK_BLA_MAX_OPCODE_LEN 8
-     #define BLAK_BLA_MAX_OPCODES_PER_LINE 16
+     #define BLAK_BLA_MAX_OPCODE_LEN 16
+     #define BLAK_BLA_MAX_OPCODES_PER_LINE 32
      #define BLAK_BLB_MAX_BYTECODES_PER_LINE 64
      #define BLAK_BLB_MAX_FILENAME_LEN 32
 /* DEFINES end. */
@@ -41,16 +41,16 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
 static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE][BLAK_BLA_MAX_OPCODE_LEN], uint8_t opcodeLineSize, bytecode_t bytecodeLine[BLAK_BLB_MAX_BYTECODES_PER_LINE]){
      uint8_t opcodeLineIndex=0;
      uint8_t bytecodeLineIndex=1;
-     
+
      for(opcodeLineIndex=0;opcodeLineIndex<opcodeLineSize;opcodeLineIndex++){ /* scan opcodes in opcodeLineIndex */
           /* can be:
                - an opcode
                - a name
                - a number
                */
-          
-          if(startsWith(opcodeLine[opcodeLineIndex], "--")){ break;} /* comment */
-          
+
+          if(startsWith(opcodeLine[opcodeLineIndex], "--")){ break;} /* skip inline comments */
+
           /*** opcodes */
           else if(strEqual(opcodeLine[opcodeLineIndex], "df")){
                needRegnameT=false;
@@ -61,7 +61,7 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
           else if(strEqual(opcodeLine[opcodeLineIndex], "udf")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_UNDEFINE;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "load")){
                bytecodeLine[bytecodeLineIndex]=BLAK_LOAD;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "uload")){
@@ -70,12 +70,12 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                bytecodeLine[bytecodeLineIndex]=BLAK_HCF;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "sna")){
                needRegnameT=false;
-               bytecodeLine[bytecodeLineIndex]=BLAK_SET_NAME;}          
+               bytecodeLine[bytecodeLineIndex]=BLAK_SET_NAME;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "sty")){
                bytecodeLine[bytecodeLineIndex]=BLAK_SET_TYPE;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "sva")){
                bytecodeLine[bytecodeLineIndex]=BLAK_SET_VALUE;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "b1")){
                bytecodeLine[bytecodeLineIndex]=BLAK_BYTE1;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "b2")){
@@ -107,50 +107,50 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
           else if(strEqual(opcodeLine[opcodeLineIndex], "b15")){
                bytecodeLine[bytecodeLineIndex]=BLAK_BYTE15;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "b16")){
-               bytecodeLine[bytecodeLineIndex]=BLAK_BYTE16;}                         
-          
-                                   
-               
+               bytecodeLine[bytecodeLineIndex]=BLAK_BYTE16;}
+
+
+
           /* BLAK_RAVENOP_T operators */
           else if(strEqual(opcodeLine[opcodeLineIndex], "+")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_ADD;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "-")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
-               bytecodeLine[bytecodeLineIndex]=BLAK_SUB;}          
+               bytecodeLine[bytecodeLineIndex]=BLAK_SUB;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "*")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_MUL;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "/")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
-               bytecodeLine[bytecodeLineIndex]=BLAK_DIV;}       
-                  
+               bytecodeLine[bytecodeLineIndex]=BLAK_DIV;}
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "==")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
-               bytecodeLine[bytecodeLineIndex]=BLAK_EQUAL;}        
+               bytecodeLine[bytecodeLineIndex]=BLAK_EQUAL;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "!=")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_NOTEQUAL;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "frv")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_FOREVER;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "if")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_IF;}
-          
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "eval")){
                bytecodeLine[bytecodeLineIndex]=BLAK_RAVENOP_T; bytecodeLineIndex++;
                bytecodeLine[bytecodeLineIndex]=BLAK_EVAL;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "say")){
                printf("|say|");
                bytecodeLine[bytecodeLineIndex]=BLAK_SAY;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "showregs")){
-               bytecodeLine[bytecodeLineIndex]=BLAK_SHOWREGS;}          
+               bytecodeLine[bytecodeLineIndex]=BLAK_SHOWREGS;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "showmem")){
                bytecodeLine[bytecodeLineIndex]=BLAK_SHOWMEM;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "lamb")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_LAMBDA;}
@@ -161,7 +161,7 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
           else if(strEqual(opcodeLine[opcodeLineIndex], "larg")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_LAMBDAARG_T;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "mu")){
                bytecodeLine[bytecodeLineIndex]=BLAK_MU;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "mua")){
@@ -170,9 +170,9 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                bytecodeLine[bytecodeLineIndex]=BLAK_MU_B;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "mue")){
                bytecodeLine[bytecodeLineIndex]=BLAK_MU_END;}
-               
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "go")){
-               bytecodeLine[bytecodeLineIndex]=BLAK_GO;}          
+               bytecodeLine[bytecodeLineIndex]=BLAK_GO;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "halt")){
                bytecodeLine[bytecodeLineIndex]=BLAK_HALT;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "ext")){
@@ -182,10 +182,10 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
           else if(strEqual(opcodeLine[opcodeLineIndex], "set")){
                bytecodeLine[bytecodeLineIndex]=BLAK_SET;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "live")){
-               bytecodeLine[bytecodeLineIndex]=BLAK_LIVE;}          
+               bytecodeLine[bytecodeLineIndex]=BLAK_LIVE;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "cod")){
                bytecodeLine[bytecodeLineIndex]=BLAK_CODING;}
-          
+
           else if(strEqual(opcodeLine[opcodeLineIndex], "prag")){
                bytecodeLine[bytecodeLineIndex]=BLAK_PRAGMA;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "nop")){
@@ -201,7 +201,7 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
 
           /* TODO: else if ... other opcodes */
           /* opcodes end. */
-          
+
           /*** types */
           else if(strEqual(opcodeLine[opcodeLineIndex], "u8")){
                /*printf(" |isu8| ");*/
@@ -237,10 +237,10 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                bytecodeLine[bytecodeLineIndex]=BLAK_REGISTERNAME_T;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "regnum")){
                bytecodeLine[bytecodeLineIndex]=BLAK_REGISTERNUMBER_T;}
-          
+
           /* TODO: else if ... other types */
           /* types end. */
-          
+
           else{ /* not an opcode nor a type */
                /*printf("==bla_to_blb: not op nor type\n");*/
                if(string_isInt(opcodeLine[opcodeLineIndex])){ /* is a number */
@@ -262,10 +262,10 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                else{ /* soooo.. it must be a name */
                     uint8_t namIndex;
                     printf("==bla_to_blb: must be a name:\"%s\" >> ", opcodeLine[opcodeLineIndex]);
-                    printf("-1(%d)|%u|-2()%d|%u|", bytecodeLineIndex-1, bytecodeLine[bytecodeLineIndex-1], bytecodeLineIndex-2, bytecodeLine[bytecodeLineIndex-2]);
-                    
-                    
-                    
+                    /*printf("-1(%d)|%u|-2()%d|%u|", bytecodeLineIndex-1, bytecodeLine[bytecodeLineIndex-1], bytecodeLineIndex-2, bytecodeLine[bytecodeLineIndex-2]);*/
+
+
+
                     /* list of opcodes that are obvoiously followed by a regname, they don't need BLAK_REGISTERNAME_T to be prepended to the actual regname, OR they are something else, so, still, they don't need BLAK_REGISTERNAME_T to be prepended to the actual regname */
                     /*if(  (((bytecodeLineIndex-1)>=1) && (
                               bytecodeLine[bytecodeLineIndex-1]!=BLAK_DEFINE &&
@@ -296,9 +296,9 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                     }
                } /* soooo.. it must be a name */
           } /* not an opcode */
-          
+
           /*printf("==bla_to_blb: %s >> [%u]%u\n", opcodeLine[opcodeLineIndex], bytecodeLineIndex, bytecodeLine[bytecodeLineIndex]);*/
-          
+
           bytecodeLineIndex++;
      }
      bytecodeLine[0]=bytecodeLineIndex; /* write size into 0 element */
@@ -311,7 +311,7 @@ int main(int argc, char* argv[]){
      FILE* fptrOut = NULL;
      uint16_t lineNum = 0;
      uint8_t lineIndex = 0;
-     /*char* fileIn = "test.bla";*/ /* blak assembly */ 
+     /*char* fileIn = "test.bla";*/ /* blak assembly */
      /*char* fileOut = "test.blb";*/ /* blak bytecode */
      char line[BLAK_BLA_MAX_LINE_LEN];
      char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE][BLAK_BLA_MAX_OPCODE_LEN];
@@ -319,10 +319,10 @@ int main(int argc, char* argv[]){
      uint8_t opcodeCharIndex;
      bytecode_t bytecodeLine[BLAK_BLB_MAX_BYTECODES_PER_LINE];
      uint8_t ind; /* multipurpose index */
-     
+
      char fileIn[BLAK_BLB_MAX_FILENAME_LEN];
      char fileOut[BLAK_BLB_MAX_FILENAME_LEN];
-     
+
      printf("=============================\n");
      printf("==  Awesome Blak Compiler  ==\n");
      printf("==  version %s   ==\n", ABC_VERSION);
@@ -332,7 +332,7 @@ int main(int argc, char* argv[]){
      printf("== MAX_OPCODES_PER_LINE: %u\n", BLAK_BLA_MAX_OPCODES_PER_LINE);
      printf("== MAX_BYTECODES_PER_LINE: %u\n", BLAK_BLB_MAX_BYTECODES_PER_LINE);
      printf("== MAX_FILENAME_LEN: %u\n", BLAK_BLB_MAX_FILENAME_LEN);
-     
+
      printf("\n");
      printf("== BLAK_DEFINE : %u\n", BLAK_DEFINE);
      printf("== BLAK_UNDEFINE : %u\n", BLAK_UNDEFINE);
@@ -340,45 +340,50 @@ int main(int argc, char* argv[]){
      printf("== BLAK_LAMBDA : %u\n", BLAK_LAMBDA);
      printf("== BLAK_LAMBDAARG_T : %u\n", BLAK_LAMBDAARG_T);
      printf("== BLAK_SET_NAME : %u\n", BLAK_SET_NAME);
-     
+
      printf("\n");
-     
+
      if(argc>1){
           sprintf(fileIn, "%s.bla", argv[1]);
           sprintf(fileOut, "%s.blb", argv[1]);
      }
      printf("==compiling %s >> %s ...\n", fileIn, fileOut);
-     
+
      line[0]='\0'; /* init */
      fptrIn = fopen(fileIn, "r");
      fptrOut = fopen(fileOut, "wb"); /* wipe the file */
      fclose(fptrOut);
      fptrOut = fopen(fileOut, "ab"); /* ab appends, wb overwrites. I append here, just in case an error occours, I don't want to overwrite an existing file */
-     
+
      while(fgets(line, BLAK_BLA_MAX_LINE_LEN, fptrIn)){ /* line by line */
           if(line[strlen(line)-1]=='\n'){ /* get rid of newline, if present */
                line[strlen(line)-1]='\0';
           }
           printf(">>line[%u]: %s >> ", lineNum, line);
-          
+
           lineIndex=0;
           opcodeIndex=0;
           opcodeCharIndex=0;
-          while(lineIndex<strlen(line)){
+          while(lineIndex<strlen(line)){ /* fill opcodeLine array with the line from the file */
                while(line[lineIndex]!='\0' && line[lineIndex]!=' '){
                     opcodeLine[opcodeIndex][opcodeCharIndex]=line[lineIndex];
                     lineIndex++;
-                    opcodeCharIndex++;
-                    opcodeLine[opcodeIndex][opcodeCharIndex]='\0';
+                    if(opcodeCharIndex<BLAK_BLA_MAX_OPCODE_LEN){
+                      opcodeCharIndex++;
+                      opcodeLine[opcodeIndex][opcodeCharIndex]='\0';
+                    }
+                    else{
+                      printf("::== opcodeCharIndex overflow: %u\n", opcodeCharIndex);
+                    }
                }
                printf("[%s]", opcodeLine[opcodeIndex]);
                lineIndex++;
-               opcodeIndex++;
+               opcodeIndex+=(opcodeIndex<BLAK_BLA_MAX_OPCODES_PER_LINE);
                opcodeCharIndex=0;
           }
           printf(" (%ux) >> ", opcodeIndex);
-          
-          bla_to_blb(opcodeLine, opcodeIndex, bytecodeLine);
+
+          bla_to_blb(opcodeLine, opcodeIndex, bytecodeLine); /* compile, line by line */
           for(ind=1;ind<bytecodeLine[0];ind++){
                printf("%u ", bytecodeLine[ind]);
           }
@@ -387,17 +392,17 @@ int main(int argc, char* argv[]){
           for(ind=1;ind<bytecodeLine[0];ind++){
                fputc(bytecodeLine[ind], fptrOut);
           }
-          
+
           lineNum++;
      } /* line by line */
-     
-     
+
+
      /* write BLAK_ENDOFBYTECODE  */
      fputc(BLAK_ENDOFBYTECODE, fptrOut);
-     
+
      fclose(fptrOut);
      fclose(fptrIn);
-     
+
      (void)argc;
      (void)argv;
      return 0;
