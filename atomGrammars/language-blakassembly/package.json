@@ -1,0 +1,17 @@
+{
+  "name": "language-blak-assembly",
+  "version": "0.0.0",
+  "description": "blak assembly language support in Atom",
+  "engines": {
+    "atom": "*"
+  },
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "license": "MIT"
+}

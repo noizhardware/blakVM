@@ -1,0 +1,57 @@
+'scopeName': 'source.raven'
+'name': 'Raven'
+'fileTypes': ['rvn', 'rav', 'raven']
+
+'patterns': [
+     {# numbers
+          'match': '\\b(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))\\b'
+          'name': 'constant.numeric.raven'},
+     {# types
+          'match': '((m|b)(?=\\d))'
+          'name': 'storage.type.raven'},
+     {# comment inline
+          'begin': '--'
+          'beginCaptures':
+            '0':
+              'name': 'punctuation.definition.comment.raven'
+          'end': '\\n'
+          'name': 'comment.line.double-dash.raven'},
+     {# comment block
+          'begin': '\\-\\.'
+          'beginCaptures':
+            '0':
+              'name': 'punctuation.definition.comment.raven'
+          'end': '\\.\\-'
+          'name': 'comment.block.raven'},
+     {# strings
+          'begin': '\''
+          'end': '\''
+          'name': 'string.quoted.single.raven'},
+     {# MAIN keywords
+          'match': '\\b(dd|rr|uu|ss|ll|ul|hcf|sum|sub|mul|div|eq|frv|if|say)\\b'
+          'name': 'keyword.control.main.raven'},
+     {# ultrashort keywords
+          'match': '\\b(ad|sb|ml|dv|fs|rs|ls|he)\\b'
+          'name': 'keyword.control.ultrashort.raven'},
+     {# NYX-only keywords
+          'match': '\\b(dumpserial|takeserial|she|now)\\b'
+          'name': 'keyword.control.nyx.raven'},
+     {# function definers and callers
+          'match': '\\b(lambda|mu|go|hh|fix)\\b'
+          'name': 'markup.heading.funcdef.raven'
+          # 'name': 'meta.function.method.definition.raven'
+          # 'name': 'entity.name.function.raven'
+     },
+     {# special ops
+          'match': '\\b(extern|hb|set|lv|co|pragma)\\b'
+          'name': 'markup.heading.specops.raven'},
+     {# operators: comma, double-period, colon
+          'match': '(\\,)|([\\.]{2})|(\\:)'
+          'name': 'keyword.control.raven'},
+     {# built-in constants
+          'match': '\\b(true|false|nil)\\b'
+          'name': 'constant.language.raven'},
+     {
+          # Last rule (without comma after the closed curly brace)
+     }
+]

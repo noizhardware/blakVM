@@ -1,0 +1,59 @@
+'scopeName': 'source.blakAssembly'
+'name': 'blakAssembly'
+'fileTypes': ['bla']
+
+'patterns': [
+     {# numbers
+          'match': '\\b(([0-9]+\\.?[0-9]*)|(\\.[0-9]+))\\b'
+          'name': 'constant.numeric.blakAssembly'},
+     {# end of list
+          'match': '\\b(eol|eox|lamba|lambb|mua|mub|mue)\\b'
+          'name': 'constant.endoflist.blakAssembly'},
+     {# types
+          'match': '\\b(u8|s8|u16|s16|b1|b2|b3|b4|b5|b6|b7|b8|b9|b10|b11|b12|b13|b14|b15|b16)\\b'
+          'name': 'markup.heading.types.blakAssembly'},
+     {# comment inline
+          'begin': '--'
+          'beginCaptures':
+            '0':
+              'name': 'punctuation.definition.comment.blakAssembly'
+          'end': '\\n'
+          'name': 'comment.line.double-dash.blakAssembly'},
+     {# strings
+          'begin': '\''
+          'end': '\''
+          'name': 'string.quoted.single.blakAssembly'},
+     {# TERMINAL-only keywords
+          'match': '\\b(showregs|showmem|say|dumpserial|takeserial|she|now)\\b'
+          'name': 'keyword.control.terminal.blakAssembly'},
+     {# MAIN keywords
+          'match': '\\b(df|rdef|udf|load|uload|hcf|sna|sty|sva|\\+|\\-|\\*|\\/|frv|if|larg)\\b'
+          'name': 'keyword.control.main.blakAssembly'},
+     {# lambdas and functions
+          'match': '\\b(expr|lamb|func|mu)\\b'
+          'name': 'markup.heading.functions.blakAssembly'},
+     #{# ultrashort keywords - unused for now
+     #     'match': '\\b()\\b'
+     #     'name': 'keyword.control.ultrashort.blakAssembly'},
+     #{# NYX-only keywords - unused for now
+     #     'match': '\\b(dumpserial|takeserial|she|now)\\b'
+     #     'name': 'keyword.control.nyx.blakAssembly'},
+     #{# function definers and callers - unused for now
+     #     'match': '\\b(lambda|mu|go|hh|fix)\\b'
+     #     'name': 'markup.heading.funcdef.blakAssembly'
+     #     # 'name': 'meta.function.method.definition.raven'
+     #     # 'name': 'entity.name.function.raven'
+     #},
+     #{# special ops - unused for now
+     #     'match': '\\b(extern|hb|set|lv|co|pragma)\\b'
+     #     'name': 'markup.heading.specops.blakAssembly'},
+     #{# operators: comma, double-period, colon - unused for now
+     #     'match': '(\\,)|([\\.]{2})|(\\:)'
+     #     'name': 'keyword.control.blakAssembly'},
+     #{# built-in constants - unused for now
+     #     'match': '\\b(true|false|nil)\\b'
+     #     'name': 'constant.language.blakAssembly'},
+     {
+          # Last rule (without comma after the closed curly brace)
+     }
+]
