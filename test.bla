@@ -10,8 +10,8 @@ df pils u16 970 -- setting with def
 -- comment-only line
 udf cix
 df a u8 55
-sna 10 dio -- raw setting
-sty 10 u16
+sna 10 dio -- raw setting: regname
+sty 10 u16 -- reg type
 sva 10 b2 3000 -- qua forse ha senso usare direttamente u8 u16, ecc, invece di u1 u2 ecc
 
 df dbl expr lamb x lamba + x x lambb eox
