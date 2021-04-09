@@ -1,3 +1,4 @@
+#define BLAK00_VERSION "2021d09-1052"
 /*** DEFINES */
      /*#define DEBUG*/
      #define BLAK_OUT_TERMINAL /* if we have a regular, printf-capable stdout interface */
@@ -39,11 +40,16 @@
          df c dbl b -- c = 24
          rdf a 15 -- this will automatically influence also b and c
          print c -- c = 34
+     
+     - unit tests:
+          mytest.bla >> mytest.blb
+          mytest.expected >> compare
 
      - (string) >> (convert into bytecode) >> (run)
        "df cix 23\ndf culo 130\ndf na 66\ndf q 45\ndf yo! 2\n" >> bytecode >> eval
      - REPL?
      - implement simple sinewave engine and start experimenting
+     - led blinking helloworld
 */
 
 
@@ -68,6 +74,7 @@ int main(){
 
      printf("=============================\n");
      printf("== blaK Win v.%s ==\n", BLAK_VERSION);
+     printf("== blaK00.c v.%s ==\n", BLAK00_VERSION);
      printf("=============================\n\n");
      printf("== VIRTUAL MEMORY (%u bytes)\n", BLAK_MEM_SIZE);
      printf("== REGISTERS (%u x %u bytes) >> %u bytes\n", BLAK_REGISTERS_QTY, sizeof(register_t), sizeof(reg));
