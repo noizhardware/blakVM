@@ -4,26 +4,38 @@
 
   at the moment I'm using uint16_t absolute addresses, so I can map a total physical memory of MAX 64k
   
-  pools = [pool, pool, pool, ....]
-  pool = [block, block, block, ...]
+  pools = [pool address, pool address, pool address, ....]
+  (pool address) -> [blockSize, blocksQty, statuses, block, block, block, ...]
+  (allocation address) -> [(MEM_ADDRESS_BYTES)allocation size, actual usable mem space!]
   
   I can request to allocate a pool of memory blocks of X size each
-  uint8_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
-     the function will return SUCCESS if successful and will add the address of the
-     newly created pool in the array "pools" cacca: dovrebbe almeno buttarmi fuori
-     o un indirizzo o il ID per l'array pools in modo che posso sapere DOVE l'ha creato
-  structure of allocated pool:
-  [(2bytes)blocksize][(2bytes)how many blocks][status bytes][...actual mem space(called "blocks")]
+  poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
+     the function, if successful, will add the address of the
+     newly created pool in the array "pools" and returns the poolId
+  structure of an allocated pool:
+  [(MEM_ADDRESS_BYTES)blockSize][(MEM_ADDRESS_BYTES)blocksQty][status bytes][...actual mem space(called "blocks")]
 
 */
 
-#define SUPAMEM_VERSION "2021d10-1543"
+/*** TODO:
+     - blockid_t getFreeBlocks(poolid_t poolId) tells how many free blocks in pool
+     - deterministic? do I know how long does each operation take to complete? is it constant?
+*/
+
+#define SUPAMEM_VERSION "2021d10-1759"
 
 /*** DEFINES */
-     #define ERROR 0
-     #define SUCCESS 1
 
      #define MEM_SIZE 1024
+     
+     #if MEM_SIZE < 256
+          #define MEM_ADDRESS_BYTES 1
+     #elif MEM_SIZE >= 256 && MEM_SIZE < 65536
+          #define MEM_ADDRESS_BYTES 2 /* unit: bytes used to address physical memory : 2bytes(16bits) >> can address MAX 2^16 = 65536 = 64kbytes of physical memory */
+     #elif MEM_SIZE >= 65536 && MEM_SIZE < 4294967296
+          #define MEM_ADDRESS_BYTES 4
+     #endif
+     
      #define MAX_POOLS 8
      #define BLOCK_STATUS_BITS 2
      
@@ -45,9 +57,18 @@
 /* INCLUDES end. */
 
 /*** TYPEDEFS */
-     typedef uint16_t memsize_t;/* 65535 bytes (64k) max mem size */
+     #if MEM_ADDRESS_BYTES == 1
+          typedef uint16_t memsize_t; /* 256 bytes max mem size */
+     #elif MEM_ADDRESS_BYTES == 2
+          typedef uint16_t memsize_t; /* 65535 bytes (64kb) max mem size */
+     /* TODO: #elif MEM_ADDRESS_BYTES == 3 */
+     #elif MEM_ADDRESS_BYTES == 4
+          typedef uint32_t memsize_t; /* 4,294,967,296 bytes (4Gb) max mem size */
+     /* TODO: #elif MEM_ADDRESS_BYTES == more than 4... */
+     #endif
+     
      typedef memsize_t memaddr_t;
-     typedef uint8_t poolid_t;
+     typedef uint8_t poolid_t; /* TODO: same as MEM_ADDRESS_BYTES, but with MAX_POOLS */
      typedef uint16_t blockid_t;
      typedef uint8_t blockstatus_t;/* actually using only 2 bits >> [0, 1, 2, 3] */
 /* TYPEDEFS end. */
@@ -82,20 +103,22 @@
 int main(){
      poolid_t myPool;
      
+     printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
+     
      showmem();
      myPool = makePool(64, 4, 37);
      showmem();
      showparts();
 
-     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+     printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
 
-     allocOnPool(10, myPool);
-     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+     allocOnPool(9, myPool);
+     printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
      
      allocOnPool(23, myPool);
-     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+     printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
      
@@ -106,30 +129,34 @@ int main(){
 
 /*** FUNCTION DEFINITIONS */
 
-void freeOnPool(const memsize_t size, const poolid_t poolId){
-     /* problema: l'allocazione non si "ricorda" di quanti blocks è fatta */
-}
+/* TODO kak void freeOnPool(memaddr_t allocAddr, const poolid_t poolId){*/
+     /* should it just receive the allocAddr and autodetect on which poolId it's been allocated? */
+/*}*/
 
 memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
      printf("==trying to allocate %ubytes on pool[%u] ...\n", size, poolId);
      
-     if(size<= getFreeMem(poolId)){
+     if(size+MEM_ADDRESS_BYTES<= getFreeMem(poolId)){ /* MEM_ADDRESS_BYTES are also used to express a memory size */
           memaddr_t returnAddr;
           memsize_t blockSize = getBlockSize(poolId);
           blockid_t blocksQty = getBlocksQty(poolId);
-          blockid_t blocksNeeded = (blockid_t)ceil((float)size/(float)blockSize);
+          blockid_t blocksNeeded = (blockid_t)ceil((float)(size+MEM_ADDRESS_BYTES)/(float)blockSize); /* MEM_ADDRESS_BYTES to store the allocation size in the allocation itself */
           blockid_t blocksFound = 0;
           blockid_t i;
           blockid_t j;
+          uint16_t statusBytesQty = /* how many bytes are being used to store blocks status on the pool */
+               ((blocksQty*BLOCK_STATUS_BITS)/8)+(((blocksQty*BLOCK_STATUS_BITS)%8)>0);
           
-          printf("==enough mem!\n");
+          printf("==thoretically enough mem...\n");
           printf("==[%u]blocks will be used\n", blocksNeeded);
           for(i=0;i<blocksQty;i++){
                blocksFound += getStatus(poolId, i)==BLOCK_EMPTY; /* if empty, add */
                blocksFound *= getStatus(poolId, i)==BLOCK_EMPTY; /* if not empty, zero-out "blocksFound" */
                if(blocksFound==blocksNeeded){
-                    printf("::blocksFound==blocksNeeded!!! (i=%u)\n", i);
-                    returnAddr = pools[poolId]+4+((i+1-blocksNeeded)*blockSize);
+                    printf("::blocksFound==blocksNeeded!!! (block index=%u)\n", i);
+                    returnAddr = pools[poolId]+2*MEM_ADDRESS_BYTES+statusBytesQty+((i+1-blocksNeeded)*blockSize);
+                    
+                    printf("==now writing status bits on pool header...\n");
                     for(j=i+1-blocksNeeded;j<=i;j++){
                          setStatus(poolId, j, BLOCK_FULL);
                     }
@@ -138,10 +165,13 @@ memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
           }
           if(blocksFound==blocksNeeded){
                printf("==[%u]consecutive blocks found at addr: %u\n", blocksNeeded, returnAddr);
+               printf("==writing size on the first %u bytes of the allocation...\n\n", MEM_ADDRESS_BYTES);
+               mem[returnAddr]=getHiByte(size); /* cacca: not MEM_ADDRESS_BYTES-agnostic, I'm assuming a memory address is uint16_t */
+               mem[returnAddr+1]=getLoByte(size); /* cacca: not MEM_ADDRESS_BYTES-agnostic, I'm assuming a memory address is uint16_t */
                return returnAddr;
           }
           else{
-               printf("::==[%u]consecutive blocks NOT found\n", blocksNeeded);
+               printf("::==[%u]consecutive blocks NOT found\n\n", blocksNeeded);
                /* TODO: try to do the "BLOCK_NEXT" trick if I don't find enough consecutive blocks */
                return -1; /* cacca: return waaat? */
           }
@@ -165,7 +195,7 @@ memsize_t getFreeMem(const poolid_t poolId){
      for(i=0;i<blocksQty;i++){
           /*if(getStatus(poolId, i)==BLOCK_EMPTY){ printf(".");}
           if(getStatus(poolId, i)==BLOCK_FULL){ printf("x");}
-          if(getStatus(poolId, i)==BLOCK_NEXT){ printf(">");}
+          if(getStatus(poolId, i)==BLOCK_NEXT){ printf("N");}
           if((i+1)%4==0){ printf (" ");}*/
           freeMem += (getStatus(poolId, i)==BLOCK_EMPTY)*blockSize;
      }
@@ -181,7 +211,7 @@ poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const
      memsize_t newMemFree = memFree - 4 - statusBytesQty; /* (2x)blockSize (2x)blocksQty */
      uint8_t i;
 
-     if(totSize>newMemFree || startAddress>=MEM_SIZE || blockSize<2){ /* minimum block size is 2bytes */
+     if(totSize>newMemFree || startAddress>=MEM_SIZE || blockSize<MEM_ADDRESS_BYTES){ /* minimum block size must be able to contain an address to physical memory */
           return -1; /* cacca: return what?? */
      }
      for(i=0;i<MAX_POOLS;i++){
@@ -195,7 +225,9 @@ poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const
           }
      }
      
-     printf("==allocating %ux(%ub)blocks(tot %ub) >> %u status bytes(%.2f%) (%u of %u %u-bits groups used (%u left in the last byte))\n", blocksQty, blockSize, blocksQty*blockSize, statusBytesQty, (float)statusBytesQty/(blocksQty*blockSize+statusBytesQty+4)*100, blocksQty, statusBytesQty*8/BLOCK_STATUS_BITS, BLOCK_STATUS_BITS, statusBytesQty*8/BLOCK_STATUS_BITS-blocksQty);
+     printf("==making a POOL of %ux(%ub)blocks(tot %ub) >> %u status bytes(%.2f%) (%u of %u %u-bits groups used (%u left in the last byte))\n", blocksQty, blockSize, blocksQty*blockSize, statusBytesQty, (float)statusBytesQty/(blocksQty*blockSize+statusBytesQty+2*MEM_ADDRESS_BYTES)*100, blocksQty, statusBytesQty*8/BLOCK_STATUS_BITS, BLOCK_STATUS_BITS, statusBytesQty*8/BLOCK_STATUS_BITS-blocksQty);
+     printf("==using [%ub] to store [%ub] >> pool metadata is (%.2f%) of the total used space\n", blocksQty*blockSize+2*MEM_ADDRESS_BYTES+statusBytesQty, blocksQty*blockSize, ((float)(2*MEM_ADDRESS_BYTES+statusBytesQty)/(blocksQty*blockSize))*100);
+     printf("==ACHTUNG: there will also be %ubytes of metadata for each allocation on any pool\n", MEM_ADDRESS_BYTES);
      
      mem[startAddress]=getHiByte(blockSize);
      mem[startAddress+1]=getLoByte(blockSize);
@@ -326,7 +358,7 @@ void showparts(){
                for(j=0;j<blocksQty;j++){
                     if(getStatus(i, j)==BLOCK_EMPTY){ printf(".");}
                     if(getStatus(i, j)==BLOCK_FULL){ printf("x");}
-                    if(getStatus(i, j)==BLOCK_NEXT){ printf(">");}
+                    if(getStatus(i, j)==BLOCK_NEXT){ printf("N");}
                     if((j+1)%4==0){ printf (" ");}
                }
                printf("\n");
