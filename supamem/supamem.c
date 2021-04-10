@@ -1,29 +1,30 @@
-/*** TODO
+/*** DOCU
+“A clear conscience is the sure sign of a bad memory.”
+― Mark Twain
 
-  32x 4bytes blocks
-  2bits per block to keep record of their status
-  64bits >> 8bytes
-  
   at the moment I'm using uint16_t absolute addresses, so I can map a total physical memory of MAX 64k
   
+  pools = [pool, pool, pool, ....]
+  pool = [block, block, block, ...]
+  
   I can request to allocate a pool of memory blocks of X size each
-  uint8_t part(memaddr_t startAddress, memsize_t blockSize, memsize_t blocksQty)
+  uint8_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
      the function will return SUCCESS if successful and will add the address of the
-     newly created partition in the array "partitions" cacca: dovrebbe almeno buttarmi fuori
-     o un indirizzo o il ID per l'array partitions in modo che posso sapere DOVE l'ha creato
-  structure of allocated partition:
-  [(2bytes)blocksize][(2bytes)how many blocks][status bytes][...actual mem space]
+     newly created pool in the array "pools" cacca: dovrebbe almeno buttarmi fuori
+     o un indirizzo o il ID per l'array pools in modo che posso sapere DOVE l'ha creato
+  structure of allocated pool:
+  [(2bytes)blocksize][(2bytes)how many blocks][status bytes][...actual mem space(called "blocks")]
 
 */
 
-#define SUPAMEM_VERSION "2021d09-2131"
+#define SUPAMEM_VERSION "2021d10-1543"
 
 /*** DEFINES */
      #define ERROR 0
      #define SUCCESS 1
 
      #define MEM_SIZE 1024
-     #define MAX_PARTITIONS 8
+     #define MAX_POOLS 8
      #define BLOCK_STATUS_BITS 2
      
      /* block statuses: */
@@ -46,7 +47,7 @@
 /*** TYPEDEFS */
      typedef uint16_t memsize_t;/* 65535 bytes (64k) max mem size */
      typedef memsize_t memaddr_t;
-     typedef uint8_t partitionid_t;
+     typedef uint8_t poolid_t;
      typedef uint16_t blockid_t;
      typedef uint8_t blockstatus_t;/* actually using only 2 bits >> [0, 1, 2, 3] */
 /* TYPEDEFS end. */
@@ -55,21 +56,22 @@
      uint8_t mem[MEM_SIZE];
      memaddr_t memPtr=0;
      memsize_t memFree=MEM_SIZE;
-     memaddr_t partitions[MAX_PARTITIONS];/* index of all created partitions, containing addresses of the partitions */
+     memaddr_t pools[MAX_POOLS];/* index of all created pools, containing addresses of the pools */
 /* GLOBALS end. */
 
 /*** FUNCTION DECLARATIONS */
-     uint8_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
+     poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
+     memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId);
      
      blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos);
      uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_t bits);
      
-     blockstatus_t getStatus(const partitionid_t partId, const blockid_t blockNum);
-     uint8_t setStatus(const partitionid_t partId, const blockid_t blockNum, const uint8_t bits);
+     blockstatus_t getStatus(const poolid_t poolId, const blockid_t blockNum);
+     void setStatus(const poolid_t poolId, const blockid_t blockNum, const blockstatus_t status);
      
-     memsize_t getBlockSize(const partitionid_t partitionId);
-     uint16_t getBlocksQty(const partitionid_t partitionId);
-     memsize_t getFreeMem(const partitionid_t partitionId);
+     memsize_t getBlockSize(const poolid_t poolId);
+     uint16_t getBlocksQty(const poolid_t poolId);
+     memsize_t getFreeMem(const poolid_t poolId);
           
      void showmem();
      void showparts();
@@ -78,72 +80,118 @@
 
 /*** MAIN */
 int main(){
+     poolid_t myPool;
+     
      showmem();
-     makePool(64, 4, 37);
+     myPool = makePool(64, 4, 37);
      showmem();
      showparts();
 
-     printf("part[%u], block[%u] : status -> %u\n", 0, 5, getStatus(0, 5));
+     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+
+     allocOnPool(10, myPool);
+     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+     showparts();
+     showmem();
      
-     if(setStatus(0, 5, 2)){
-          printf("part[%u], block[%u] : status -> %u\n", 0, 5, getStatus(0, 5));
-     }
-
-     printf("free mem: %u\n", getFreeMem(0));
-
+     allocOnPool(23, myPool);
+     printf("free mem in pool[%u]: %u\n", myPool, getFreeMem(myPool));
+     showparts();
+     showmem();
+     
+     
      return 0;
 }
 /* MAIN end. */
 
 /*** FUNCTION DEFINITIONS */
 
-memaddr_t allocOnPool(memsize_t size, partitionid_t partitionId){
-     memsize_t blockSize = getBlockSize(partitionId);
-     blockid_t blocksQty = getBlocksQty(partitionId);
-     if(size<= 99 /*getFreeMem here*/){
-          /* kak */
+void freeOnPool(const memsize_t size, const poolid_t poolId){
+     /* problema: l'allocazione non si "ricorda" di quanti blocks è fatta */
+}
+
+memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
+     printf("==trying to allocate %ubytes on pool[%u] ...\n", size, poolId);
+     
+     if(size<= getFreeMem(poolId)){
+          memaddr_t returnAddr;
+          memsize_t blockSize = getBlockSize(poolId);
+          blockid_t blocksQty = getBlocksQty(poolId);
+          blockid_t blocksNeeded = (blockid_t)ceil((float)size/(float)blockSize);
+          blockid_t blocksFound = 0;
+          blockid_t i;
+          blockid_t j;
+          
+          printf("==enough mem!\n");
+          printf("==[%u]blocks will be used\n", blocksNeeded);
+          for(i=0;i<blocksQty;i++){
+               blocksFound += getStatus(poolId, i)==BLOCK_EMPTY; /* if empty, add */
+               blocksFound *= getStatus(poolId, i)==BLOCK_EMPTY; /* if not empty, zero-out "blocksFound" */
+               if(blocksFound==blocksNeeded){
+                    printf("::blocksFound==blocksNeeded!!! (i=%u)\n", i);
+                    returnAddr = pools[poolId]+4+((i+1-blocksNeeded)*blockSize);
+                    for(j=i+1-blocksNeeded;j<=i;j++){
+                         setStatus(poolId, j, BLOCK_FULL);
+                    }
+                    break;
+               }
+          }
+          if(blocksFound==blocksNeeded){
+               printf("==[%u]consecutive blocks found at addr: %u\n", blocksNeeded, returnAddr);
+               return returnAddr;
+          }
+          else{
+               printf("::==[%u]consecutive blocks NOT found\n", blocksNeeded);
+               /* TODO: try to do the "BLOCK_NEXT" trick if I don't find enough consecutive blocks */
+               return -1; /* cacca: return waaat? */
+          }
      }
      else{
+          printf("::==not enough memory in this pool\n");
           return -1; /* cacca: return waaat? */
      }
 }
 
-memsize_t getFreeMem(const partitionid_t partitionId){
-     memsize_t blockSize = getBlockSize(partitionId);
-     blockid_t blocksQty = getBlocksQty(partitionId);
+memsize_t getFreeMem(const poolid_t poolId){
+     memsize_t blockSize = getBlockSize(poolId);
+     blockid_t blocksQty = getBlocksQty(poolId);
      blockid_t i;
      memsize_t freeMem = 0;
      
-     printf("==getFreeMem: blockSize : %u\n", blockSize);
+     /*printf("==getFreeMem: blockSize : %u\n", blockSize);
      printf("==getFreeMem: blocksQty : %u\n", blocksQty);
      
-     printf("==getFreeMem: statuses: ", blocksQty);
+     printf("==getFreeMem: statuses: ", blocksQty);*/
      for(i=0;i<blocksQty;i++){
-          printf("%u ", getStatus(partitionId, i));
-          freeMem += (getStatus(partitionId, i)==BLOCK_EMPTY)*blockSize;
+          /*if(getStatus(poolId, i)==BLOCK_EMPTY){ printf(".");}
+          if(getStatus(poolId, i)==BLOCK_FULL){ printf("x");}
+          if(getStatus(poolId, i)==BLOCK_NEXT){ printf(">");}
+          if((i+1)%4==0){ printf (" ");}*/
+          freeMem += (getStatus(poolId, i)==BLOCK_EMPTY)*blockSize;
      }
-     printf("\n");
+     /*printf("\n");*/
      return freeMem;
 }
 
-uint8_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty){
+poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty){
      memsize_t totSize = blockSize*blocksQty;
-     /* how many bytes are needed to keep track of blocks status */
-     uint16_t statusBytesQty =
+     poolid_t returnPoolId;
+     uint16_t statusBytesQty = /* how many bytes are needed to keep track of blocks status */
           ((blocksQty*BLOCK_STATUS_BITS)/8)+(((blocksQty*BLOCK_STATUS_BITS)%8)>0);
      memsize_t newMemFree = memFree - 4 - statusBytesQty; /* (2x)blockSize (2x)blocksQty */
      uint8_t i;
 
      if(totSize>newMemFree || startAddress>=MEM_SIZE || blockSize<2){ /* minimum block size is 2bytes */
-          return ERROR;
+          return -1; /* cacca: return what?? */
      }
-     for(i=0;i<MAX_PARTITIONS;i++){
-               if(partitions[i]==0){/* if partition slot is empty */
-                    partitions[i]=startAddress;/* fill it with the current partition address */
+     for(i=0;i<MAX_POOLS;i++){
+               if(pools[i]==0){/* if pool slot is empty */
+                    pools[i]=startAddress;/* fill it with the current pool address */
+                    returnPoolId = i;
                     break;
                }
-          if(i==(MAX_PARTITIONS-1)){
-               return ERROR;
+          if(i==(MAX_POOLS-1)){
+               return -1; /* cacca: return what?? */
           }
      }
      
@@ -158,8 +206,8 @@ uint8_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const 
      }
 
      memFree=newMemFree-totSize;
-     return SUCCESS;
-}/*uint8_t part(memaddr_t startAddress, memsize_t partitionSize, memsize_t partitionsQty)*/
+     return returnPoolId;
+}/* makePool */
 
 blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos){
      /*bitsPos: 0 = MSB*/
@@ -202,8 +250,8 @@ uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_
 }
 
 
-blockstatus_t getStatus(const partitionid_t partId, const blockid_t blockNum){
-     memaddr_t statusAddr = partitions[partId]+4;/* where the status bits-bytes begin */
+blockstatus_t getStatus(const poolid_t poolId, const blockid_t blockNum){
+     memaddr_t statusAddr = pools[poolId]+4;/* where the status bits-bytes begin */
      /*
      ceil(blockNum*BLOCK_STATUS_BITS/8) == which byte contains my 2bits
      statusAddr + ceil(blockNum*BLOCK_STATUS_BITS/8) == actual address of byte with my 2bits
@@ -218,25 +266,31 @@ blockstatus_t getStatus(const partitionid_t partId, const blockid_t blockNum){
      return twoBitsfromByte(
           mem[statusAddr + (uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8)],
                0 +
-               (fract(blockNum/4)==.5)*1 +
-               (fract(blockNum/4)==.75)*2 +
-               (fract(blockNum/4)==0.)*3
+               (fract((float)blockNum/4)==.25)*1 +
+               (fract((float)blockNum/4)==.5)*2 +
+               (fract((float)blockNum/4)==.75)*3
      );
 }
 
-uint8_t setStatus(const partitionid_t partId, const blockid_t blockNum, const uint8_t bits){
-     memaddr_t statusAddr = partitions[partId]+4;/* where the status bits-bytes begin */
+void setStatus(const poolid_t poolId, const blockid_t blockNum, const blockstatus_t status){
+     memaddr_t statusAddr = pools[poolId]+4;/* where the status bytes begin */
+     
+     /*printf("::setStatus: blockNum[%u] >> byte[%u]\n", blockNum, (uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8));
+     printf("::setStatus: fract(blockNum/4): %.2f\n", fract((float)blockNum/4));
+     printBits(mem[statusAddr+(uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8)]);*/
      
      mem[statusAddr+(uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8)] =
           setTwoBitsOnByte(
                mem[statusAddr+(uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8)],
-               0 +
-                    (fract(blockNum/4)==.5)*1 +
-                    (fract(blockNum/4)==.75)*2 +
-                    (fract(blockNum/4)==0.)*3,
-               bits
+                    0 +
+                    (fract((float)blockNum/4)==.25)*1 +
+                    (fract((float)blockNum/4)==.5)*2 +
+                    (fract((float)blockNum/4)==.75)*3,
+               status
           );
-     return SUCCESS;
+          
+     /*printBits(mem[statusAddr+(uint32_t)ceil(blockNum*BLOCK_STATUS_BITS/8)]);*/
+
      /* cacca: not managing errors */
 }
 
@@ -249,23 +303,33 @@ void showmem(){
                printf("\n");
           }
      }
-     printf("==tot free mem: %ubytes\n\n", memFree);
+     printf("==tot unallocated mem: %ubytes\n\n", memFree);
 }/* showmem */
 
-memsize_t getBlockSize(const partitionid_t partitionId){
-     return makeUint16(mem[partitions[partitionId]], mem[partitions[partitionId]+1]);
+memsize_t getBlockSize(const poolid_t poolId){
+     return makeUint16(mem[pools[poolId]], mem[pools[poolId]+1]);
 }
-uint16_t getBlocksQty(const partitionid_t partitionId){
-     return makeUint16(mem[partitions[partitionId]+2], mem[partitions[partitionId]+3]);
+uint16_t getBlocksQty(const poolid_t poolId){
+     return makeUint16(mem[pools[poolId]+2], mem[pools[poolId]+3]);
 }
 
 void showparts(){
-     uint8_t i = 0;
+     uint8_t i;
+     blockid_t j;
 
-     for(i=0;i<MAX_PARTITIONS;i++){
-          if(partitions[i]){
-               printf("==part[%u]:%u >> %ux %ubytes blocks >> %ubytes total\n"
-                    , i, partitions[i], getBlocksQty(i), getBlockSize(i), getBlocksQty(i)*getBlockSize(i));
+     for(i=0;i<MAX_POOLS;i++){
+          blockid_t blocksQty = getBlocksQty(i);
+          memsize_t blockSize = getBlockSize(i);
+          if(pools[i]){
+               printf("==pool[%u]at[%u] >> %ux %ubytes blocks >> %ubytes total : "
+                    , i, pools[i], blocksQty, blockSize, blocksQty*blockSize);
+               for(j=0;j<blocksQty;j++){
+                    if(getStatus(i, j)==BLOCK_EMPTY){ printf(".");}
+                    if(getStatus(i, j)==BLOCK_FULL){ printf("x");}
+                    if(getStatus(i, j)==BLOCK_NEXT){ printf(">");}
+                    if((j+1)%4==0){ printf (" ");}
+               }
+               printf("\n");
           }
           else{
                printf("==part[%u] is empty\n", i);
