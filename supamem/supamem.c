@@ -3,26 +3,41 @@
 ― Mark Twain
 
   at the moment I'm using uint16_t absolute addresses, so I can map a total physical memory of MAX 64k
+     see MEM_ADDRESS_BYTES variable #define
   
-  pools = [pool address, pool address, pool address, ....]
+  pools(array) = [pool address, pool address, pool address, ....]
   (pool address) -> [blockSize, blocksQty, statuses, block, block, block, ...]
   (allocation address) -> [(MEM_ADDRESS_BYTES)allocation size, actual usable mem space!]
   
   I can request to allocate a pool of memory blocks of X size each
   poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
      the function, if successful, will add the address of the
-     newly created pool in the array "pools" and returns the poolId
-  structure of an allocated pool:
-  [(MEM_ADDRESS_BYTES)blockSize][(MEM_ADDRESS_BYTES)blocksQty][status bytes][...actual mem space(called "blocks")]
+     newly created pool in the array "pools" and will return the array index "poolId"
 
+     supamem can be used with zero fragmentation risk, if you only request allocations of blockSize multiples:
+     memsize_t myBlockSize = 4;
+     memaddr_t myVar;
+     poolid_t myPoolId = makePool(anyAddress, myBlockSize, 50); -- 50x 4b blocks >> 200b tot
+     myVar = allocOnPool(anIntValueHere * myBlockSize, myPoolId);
+     
+     - for livecoding:
+     you should declare a pool at the beginning of the program, encompassing all the available memory 
+     block size should be carefully chosen
 */
 
 /*** TODO:
      - blockid_t getFreeBlocks(poolid_t poolId) tells how many free blocks in pool
      - deterministic? do I know how long does each operation take to complete? is it constant?
+     - now I'm asking(and writing to the pool header): (blockSize + blocksQty), another possibility would be (poolSize, blocksQty)
+          PRO : immediately know the total size of the pool
+          CON: poolsize might not be divisible by blocksQty
+     - from https://www.embedded.com/deterministic-dynamic-memory-allocation-fragmentation-in-c-c/
+          The idea is to define a series of partition pools with block sizes in a geometric progression; e.g. 32, 64, 128, 256 bytes. A malloc() function may be written to deterministically select the correct pool to provide enough space for a given allocation request.
+          This approach takes advantage of the deterministic behavior of the partition allocation API call, the robust error handling (e.g. task suspend) and the immunity from fragmentation offered by block memory.
+     - supaAlloc - supaFree >> for embedded-friendly, all-memory allocation (you need to define the pool accordingly, before doing supaAlloc-free)
 */
 
-#define SUPAMEM_VERSION "2021d10-1759"
+#define SUPAMEM_VERSION "2021d11-1132"
 
 /*** DEFINES */
 
@@ -48,10 +63,13 @@
 /* DEFINES end. */
 
 /*** INCLUDES */
+#define _POSIX_C_SOURCE 199309L
      #include <stdio.h>
      #include <stdint.h>
      #include <math.h>
-
+     #include <time.h>
+     #include <locale.h>
+     
      #include "bitty.h"
      #include "baomath.h"
 /* INCLUDES end. */
@@ -103,21 +121,47 @@
 int main(){
      poolid_t myPool;
      
+     struct timespec start, end;
+     double time_spent;
+     
+     
      printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
+     setlocale(LC_NUMERIC, "");
      
      showmem();
-     myPool = makePool(64, 4, 37);
+     
+     clock_gettime(CLOCK_REALTIME, &start);
+myPool = makePool(64, 4, 37);
+     clock_gettime(CLOCK_REALTIME, &end);
+     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
+                    (end.tv_nsec - start.tv_nsec);
+     printf(">>>>>>>>>>>>makePool took %'.0f nsec\n", time_spent);
+
      showmem();
      showparts();
 
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
 
-     allocOnPool(9, myPool);
+ 
+     clock_gettime(CLOCK_REALTIME, &start);
+allocOnPool(9, myPool);
+     clock_gettime(CLOCK_REALTIME, &end);
+     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
+                    (end.tv_nsec - start.tv_nsec);
+     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", time_spent);
+
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
      
-     allocOnPool(23, myPool);
+     
+     clock_gettime(CLOCK_REALTIME, &start);
+allocOnPool(23, myPool);
+     clock_gettime(CLOCK_REALTIME, &end);
+     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
+                    (end.tv_nsec - start.tv_nsec);
+     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", time_spent);
+     
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
@@ -241,6 +285,7 @@ poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const
      return returnPoolId;
 }/* makePool */
 
+/* TODO: move twoBitsfromByte and setTwoBitsOnByte to bitty.h?? */
 blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos){
      /*bitsPos: 0 = MSB*/
      if(bitsPos==0){
@@ -260,7 +305,6 @@ blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos){
           return -1; /* cacca: return what?? */
      }
 }
-
 uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_t bits){
      /*bitsPos: 0 = MSB*/
      if(bitsPos==0){
