@@ -34,12 +34,16 @@
      - from https://www.embedded.com/deterministic-dynamic-memory-allocation-fragmentation-in-c-c/
           The idea is to define a series of partition pools with block sizes in a geometric progression; e.g. 32, 64, 128, 256 bytes. A malloc() function may be written to deterministically select the correct pool to provide enough space for a given allocation request.
           This approach takes advantage of the deterministic behavior of the partition allocation API call, the robust error handling (e.g. task suspend) and the immunity from fragmentation offered by block memory.
-     - supaAlloc - supaFree >> for embedded-friendly, all-memory allocation (you need to define the pool accordingly, before doing supaAlloc-free)
+     - supaMalloc - supaFree >> for embedded-friendly, all-memory allocation (you need to define the pool accordingly, before doing supaAlloc-free)
 */
 
-#define SUPAMEM_VERSION "2021d11-1132"
+#define SUPAMEM_VERSION "2021d11-2052"
+
+#define SUPAMEM_DEBUG
 
 /*** DEFINES */
+     /*#define FAIL 0
+     #define SUCCESS 1*/
 
      #define MEM_SIZE 1024
      
@@ -89,6 +93,8 @@
      typedef uint8_t poolid_t; /* TODO: same as MEM_ADDRESS_BYTES, but with MAX_POOLS */
      typedef uint16_t blockid_t;
      typedef uint8_t blockstatus_t;/* actually using only 2 bits >> [0, 1, 2, 3] */
+     
+     /*typedef uint8_t outcome_t;*/ /* to manage fail/success */
 /* TYPEDEFS end. */
 
 /*** GLOBALS */
@@ -96,11 +102,19 @@
      memaddr_t memPtr=0;
      memsize_t memFree=MEM_SIZE;
      memaddr_t pools[MAX_POOLS];/* index of all created pools, containing addresses of the pools */
+     
+     struct timespec supamem_start, supamem_end;
+     double supamem_time_spent;
 /* GLOBALS end. */
 
 /*** FUNCTION DECLARATIONS */
      poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const memsize_t blocksQty);
+     
      memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId);
+     /*void freeOnPool(const memaddr_t allocAddr, const poolid_t poolId);*/
+     memsize_t getAllocSize(const memaddr_t memAddr);
+     
+     memsize_t supaPool(memaddr_t addr, memsize_t size);
      
      blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos);
      uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_t bits);
@@ -121,21 +135,19 @@
 int main(){
      poolid_t myPool;
      
-     struct timespec start, end;
-     double time_spent;
      
      
      printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
      setlocale(LC_NUMERIC, "");
-     
+
      showmem();
-     
-     clock_gettime(CLOCK_REALTIME, &start);
+
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
 myPool = makePool(64, 4, 37);
-     clock_gettime(CLOCK_REALTIME, &end);
-     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
-                    (end.tv_nsec - start.tv_nsec);
-     printf(">>>>>>>>>>>>makePool took %'.0f nsec\n", time_spent);
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>makePool took %'.0f nsec\n", supamem_time_spent);
 
      showmem();
      showparts();
@@ -143,29 +155,35 @@ myPool = makePool(64, 4, 37);
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
 
  
-     clock_gettime(CLOCK_REALTIME, &start);
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
 allocOnPool(9, myPool);
-     clock_gettime(CLOCK_REALTIME, &end);
-     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
-                    (end.tv_nsec - start.tv_nsec);
-     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", time_spent);
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", supamem_time_spent);
 
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
      
      
-     clock_gettime(CLOCK_REALTIME, &start);
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
 allocOnPool(23, myPool);
-     clock_gettime(CLOCK_REALTIME, &end);
-     time_spent = ((end.tv_sec - start.tv_sec) * 1000000000) +
-                    (end.tv_nsec - start.tv_nsec);
-     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", time_spent);
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>allocOnPool took %'.0f nsec\n", supamem_time_spent);
      
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
      showmem();
      
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
+supaPool(0, 1022);
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>supaPool took %'.0f nsec\n", supamem_time_spent);
      
      return 0;
 }
@@ -173,12 +191,113 @@ allocOnPool(23, myPool);
 
 /*** FUNCTION DEFINITIONS */
 
-/* TODO kak void freeOnPool(memaddr_t allocAddr, const poolid_t poolId){*/
+memsize_t supaPool(memaddr_t addr, memsize_t size){
+     /* 4 8 16 32 bytes blocks*/
+     /*kak*/
+     
+     if(size<60){ /* cacca: take into account metadata + statuses */
+          printf("::==pool size too small to be SUPA\n");
+          return 0;
+     }
+     else if((addr+size)>MEM_SIZE){
+          printf("::==not enuff space in mem\n");
+          return 0;
+     }
+     else{
+          memsize_t blocks4 = floor(floor((float)size/4.)/4.);/* a quarter of how many 4b blocks can fit in "size" */
+          memsize_t blocks8 = floor((float)blocks4/2.);/* a quarter of how many 8b blocks */
+          memsize_t blocks16 = floor((float)blocks8/2.);/* a quarter of how many 16b blocks */
+          memsize_t blocks32 = floor((float)blocks16/2.);/* a quarter of how many 32b blocks */
+          memsize_t statusBytes = ceil((float)(blocks4+blocks8+blocks16+blocks32)/8.);/* how many status bytes are needed to keep track of all blocks */
+          uint8_t cycle = 0;
+          uint16_t i;
+          
+          /* cacca: I can find a better way to choose what blocksize to eliminate to make space for metadata+statuses */
+          while((blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes)>size){
+               #ifdef SUPAMEM_DEBUG
+                    printf("::[%u]tot is: %ub >> ", cycle, blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes);
+                    #endif
+               if(cycle==0){
+                    #ifdef SUPAMEM_DEBUG
+                         printf("-4\n");
+                         #endif
+                    blocks4--;
+                    statusBytes = ceil((float)(blocks4+blocks8+blocks16+blocks32)/8.);
+                    cycle++;
+               }
+               else if(cycle==1){
+                    #ifdef SUPAMEM_DEBUG
+                         printf("-8\n");
+                         #endif
+                    blocks8--;
+                    statusBytes = ceil((float)(blocks4+blocks8+blocks16+blocks32)/8.);
+                    cycle++;
+               }
+               else if(cycle==2){
+                    #ifdef SUPAMEM_DEBUG
+                         printf("-16\n");
+                         #endif
+                    blocks16--;
+                    statusBytes = ceil((float)(blocks4+blocks8+blocks16+blocks32)/8.);
+                    cycle++;
+               }
+               else if(cycle==3){
+                    #ifdef SUPAMEM_DEBUG
+                         printf("-32\n");
+                         #endif
+                    blocks32--;
+                    statusBytes = ceil((float)(blocks4+blocks8+blocks16+blocks32)/8.);
+                    cycle=0;
+               }
+          }
+          #ifdef SUPAMEM_DEBUG
+               printf("==supaPool:: is making: [%ux]blocks4 [%ux]blocks8 [%ux]blocks16 [%ux]blocks32\n  totUsable[%ub] metadata[8b] (%ux)statuses[%ub](%uB left) >> tot[%ub] >> [%ub]less than requested >> [%ub]lost in the void \n",
+                    blocks4, blocks8, blocks16, blocks32,
+                    blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32,
+                    blocks4 + blocks8 + blocks16 + blocks32,
+                    statusBytes,
+                    statusBytes*8-(blocks4 + blocks8 + blocks16 + blocks32),
+                    blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes,
+                    size-(blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32),
+                    size-(blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes)
+               );
+               #endif
+               /* TODO: I can compare bytes lost in the void and status BITS left, and try to reclaim part/all of that space */
+          
+          /* write size metadata */     
+          mem[addr]=getHiByte(blocks4);
+          mem[addr+1]=getLoByte(blocks4);
+          mem[addr+2]=getHiByte(blocks8);
+          mem[addr+3]=getLoByte(blocks8);
+          mem[addr+4]=getHiByte(blocks16);
+          mem[addr+5]=getLoByte(blocks16);
+          mem[addr+6]=getHiByte(blocks32);
+          mem[addr+7]=getLoByte(blocks32);
+          /* write status bits; writing all 0's, all blocks are empty right now */
+          for(i=0;i<statusBytes;i++){
+               mem[addr+8+i]=B00000000;
+          }
+          
+          return blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32;/* return total usable allocated memory, in bytes */
+     }
+}
+
+
+
+/*void freeOnPool(const memaddr_t allocAddr, const poolid_t poolId){*/
      /* should it just receive the allocAddr and autodetect on which poolId it's been allocated? */
+     /* cacca: è un casino, devo retrievare un botto di info per fare il dealloc */
 /*}*/
 
+memsize_t getAllocSize(const memaddr_t memAddr){
+     return makeUint16(mem[memAddr], mem[memAddr]+1);
+}
+
+
 memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
-     printf("==trying to allocate %ubytes on pool[%u] ...\n", size, poolId);
+     #ifdef SUPAMEM_DEBUG
+          printf("==trying to allocate %ubytes on pool[%u] ...\n", size, poolId);
+          #endif
      
      if(size+MEM_ADDRESS_BYTES<= getFreeMem(poolId)){ /* MEM_ADDRESS_BYTES are also used to express a memory size */
           memaddr_t returnAddr;
@@ -191,16 +310,22 @@ memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
           uint16_t statusBytesQty = /* how many bytes are being used to store blocks status on the pool */
                ((blocksQty*BLOCK_STATUS_BITS)/8)+(((blocksQty*BLOCK_STATUS_BITS)%8)>0);
           
-          printf("==thoretically enough mem...\n");
-          printf("==[%u]blocks will be used\n", blocksNeeded);
+          #ifdef SUPAMEM_DEBUG
+               printf("==thoretically enough mem...\n");
+               printf("==[%u]blocks will be used\n", blocksNeeded);
+               #endif
           for(i=0;i<blocksQty;i++){
                blocksFound += getStatus(poolId, i)==BLOCK_EMPTY; /* if empty, add */
                blocksFound *= getStatus(poolId, i)==BLOCK_EMPTY; /* if not empty, zero-out "blocksFound" */
                if(blocksFound==blocksNeeded){
-                    printf("::blocksFound==blocksNeeded!!! (block index=%u)\n", i);
+                    #ifdef SUPAMEM_DEBUG
+                         printf("::blocksFound==blocksNeeded!!! (block index=%u)\n", i);
+                         #endif
                     returnAddr = pools[poolId]+2*MEM_ADDRESS_BYTES+statusBytesQty+((i+1-blocksNeeded)*blockSize);
                     
-                    printf("==now writing status bits on pool header...\n");
+                    #ifdef SUPAMEM_DEBUG
+                         printf("==now writing status bits on pool header...\n");
+                         #endif
                     for(j=i+1-blocksNeeded;j<=i;j++){
                          setStatus(poolId, j, BLOCK_FULL);
                     }
@@ -208,8 +333,10 @@ memaddr_t allocOnPool(const memsize_t size, const poolid_t poolId){
                }
           }
           if(blocksFound==blocksNeeded){
-               printf("==[%u]consecutive blocks found at addr: %u\n", blocksNeeded, returnAddr);
-               printf("==writing size on the first %u bytes of the allocation...\n\n", MEM_ADDRESS_BYTES);
+               #ifdef SUPAMEM_DEBUG
+                    printf("==[%u]consecutive blocks found at addr: %u\n", blocksNeeded, returnAddr);
+                    printf("==writing size on the first %u bytes of the allocation...\n\n", MEM_ADDRESS_BYTES);
+                    #endif
                mem[returnAddr]=getHiByte(size); /* cacca: not MEM_ADDRESS_BYTES-agnostic, I'm assuming a memory address is uint16_t */
                mem[returnAddr+1]=getLoByte(size); /* cacca: not MEM_ADDRESS_BYTES-agnostic, I'm assuming a memory address is uint16_t */
                return returnAddr;
@@ -269,9 +396,25 @@ poolid_t makePool(const memaddr_t startAddress, const memsize_t blockSize, const
           }
      }
      
-     printf("==making a POOL of %ux(%ub)blocks(tot %ub) >> %u status bytes(%.2f%) (%u of %u %u-bits groups used (%u left in the last byte))\n", blocksQty, blockSize, blocksQty*blockSize, statusBytesQty, (float)statusBytesQty/(blocksQty*blockSize+statusBytesQty+2*MEM_ADDRESS_BYTES)*100, blocksQty, statusBytesQty*8/BLOCK_STATUS_BITS, BLOCK_STATUS_BITS, statusBytesQty*8/BLOCK_STATUS_BITS-blocksQty);
-     printf("==using [%ub] to store [%ub] >> pool metadata is (%.2f%) of the total used space\n", blocksQty*blockSize+2*MEM_ADDRESS_BYTES+statusBytesQty, blocksQty*blockSize, ((float)(2*MEM_ADDRESS_BYTES+statusBytesQty)/(blocksQty*blockSize))*100);
-     printf("==ACHTUNG: there will also be %ubytes of metadata for each allocation on any pool\n", MEM_ADDRESS_BYTES);
+     #ifdef SUPAMEM_DEBUG
+          printf("==making a POOL of %ux(%ub)blocks(tot %ub) >> %u status bytes(%.2f%) (%u of %u %u-bits groups used (%u left in the last byte))\n",
+               blocksQty,
+               blockSize,
+               blocksQty*blockSize,
+               statusBytesQty,
+               (float)statusBytesQty/(blocksQty*blockSize+statusBytesQty+2*MEM_ADDRESS_BYTES)*100,
+               blocksQty,
+               statusBytesQty*8/BLOCK_STATUS_BITS,
+               BLOCK_STATUS_BITS,
+               statusBytesQty*8/BLOCK_STATUS_BITS-blocksQty
+          );
+          printf("==using [%ub] to store [%ub] >> pool metadata is (%.2f%) of the total used space\n",
+               blocksQty*blockSize+2*MEM_ADDRESS_BYTES+statusBytesQty,
+               blocksQty*blockSize,
+               ((float)(2*MEM_ADDRESS_BYTES+statusBytesQty)/(blocksQty*blockSize))*100
+          );
+          printf("==ACHTUNG: there will also be %ubytes of metadata for each allocation on any pool\n", MEM_ADDRESS_BYTES);
+     #endif
      
      mem[startAddress]=getHiByte(blockSize);
      mem[startAddress+1]=getLoByte(blockSize);
