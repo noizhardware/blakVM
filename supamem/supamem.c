@@ -28,6 +28,7 @@
 /*** TODO:
      - blockid_t getFreeBlocks(poolid_t poolId) tells how many free blocks in pool
      - deterministic? do I know how long does each operation take to complete? is it constant?
+          need to calculate big O's of supaMalloc and supaFree (also supaPool, but less important)
      - now I'm asking(and writing to the pool header): (blockSize + blocksQty), another possibility would be (poolSize, blocksQty)
           PRO : immediately know the total size of the pool
           CON: poolsize might not be divisible by blocksQty
@@ -37,7 +38,7 @@
      - supaMalloc - supaFree >> for embedded-friendly, all-memory allocation (you need to define the pool accordingly, before doing supaAlloc-free)
 */
 
-#define SUPAMEM_VERSION "2021d11-2052"
+#define SUPAMEM_VERSION "2021d12-0154"
 
 #define SUPAMEM_DEBUG
 
@@ -45,7 +46,7 @@
      /*#define FAIL 0
      #define SUCCESS 1*/
 
-     #define MEM_SIZE 1024
+     #define MEM_SIZE 10000
      
      #if MEM_SIZE < 256
           #define MEM_ADDRESS_BYTES 1
@@ -114,7 +115,7 @@
      /*void freeOnPool(const memaddr_t allocAddr, const poolid_t poolId);*/
      memsize_t getAllocSize(const memaddr_t memAddr);
      
-     memsize_t supaPool(memaddr_t addr, memsize_t size);
+     memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr);
      
      blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos);
      uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_t bits);
@@ -133,16 +134,15 @@
 
 /*** MAIN */
 int main(){
-     poolid_t myPool;
-     
-     
+     /*poolid_t myPool;*/
+     memaddr_t mySupaPool = 66;
      
      printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
      setlocale(LC_NUMERIC, "");
 
-     showmem();
+     /*showmem();*/
 
-     clock_gettime(CLOCK_REALTIME, &supamem_start);
+     /*clock_gettime(CLOCK_REALTIME, &supamem_start);
 myPool = makePool(64, 4, 37);
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
@@ -176,14 +176,16 @@ allocOnPool(23, myPool);
      
      printf("free mem in pool[%u]: %ub in [%ux]of[%ux] [%ub]blocks\n", myPool, getFreeMem(myPool), getFreeMem(myPool)/getBlockSize(myPool), getBlocksQty(myPool), getBlockSize(myPool));
      showparts();
-     showmem();
+     showmem();*/
      
      clock_gettime(CLOCK_REALTIME, &supamem_start);
-supaPool(0, 1022);
+if(supaPool(0, 69, &mySupaPool)){ printf(">> pool creation successful at [%u]addr\n", mySupaPool);};
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
                     (supamem_end.tv_nsec - supamem_start.tv_nsec);
      printf(">>>>>>>>>>>>supaPool took %'.0f nsec\n", supamem_time_spent);
+     
+     /*showmem();*/
      
      return 0;
 }
@@ -191,11 +193,14 @@ supaPool(0, 1022);
 
 /*** FUNCTION DEFINITIONS */
 
-memsize_t supaPool(memaddr_t addr, memsize_t size){
+memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr){ /* make a pool of blocks */
      /* 4 8 16 32 bytes blocks*/
-     /*kak*/
-     
-     if(size<60){ /* cacca: take into account metadata + statuses */
+     /* with a 2-bytes size descriptor I can index a max of 1Mb of physical memory:
+          (65536x)[4b] + (32768x)[8b] + (16384x)[16b] + (8192x)[32] >> 1048576b(1024kb)(1Mb)
+     */
+
+     if(size<69){ /* minimum pool size: (block4 + block8 + block16 + block32)+(pool size)+(status bits) >> (4 + 8 + 16 + 32)+(8)+(1) bytes */
+          /* cacca: if I try to create a 69b pool, it will be missing the 32b block... but maybe that's ok, 1 of each size is NOT a good pool! */
           printf("::==pool size too small to be SUPA\n");
           return 0;
      }
@@ -203,7 +208,7 @@ memsize_t supaPool(memaddr_t addr, memsize_t size){
           printf("::==not enuff space in mem\n");
           return 0;
      }
-     else{
+     else{/* actual function body */
           memsize_t blocks4 = floor(floor((float)size/4.)/4.);/* a quarter of how many 4b blocks can fit in "size" */
           memsize_t blocks8 = floor((float)blocks4/2.);/* a quarter of how many 8b blocks */
           memsize_t blocks16 = floor((float)blocks8/2.);/* a quarter of how many 16b blocks */
@@ -251,7 +256,8 @@ memsize_t supaPool(memaddr_t addr, memsize_t size){
                }
           }
           #ifdef SUPAMEM_DEBUG
-               printf("==supaPool:: is making: [%ux]blocks4 [%ux]blocks8 [%ux]blocks16 [%ux]blocks32\n  totUsable[%ub] metadata[8b] (%ux)statuses[%ub](%uB left) >> tot[%ub] >> [%ub]less than requested >> [%ub]lost in the void \n",
+               printf("==supaPool:: [%ub]request at [%u]addr >> [%ux]blocks4 [%ux]blocks8 [%ux]blocks16 [%ux]blocks32\n  totUsable[%ub] metadata[8b] (%ux)statuses[%ub](%uB left) >> tot[%ub] >> [%ub]less than requested >> [%ub]lost in the void",
+                    size, addr,
                     blocks4, blocks8, blocks16, blocks32,
                     blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32,
                     blocks4 + blocks8 + blocks16 + blocks32,
@@ -261,10 +267,33 @@ memsize_t supaPool(memaddr_t addr, memsize_t size){
                     size-(blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32),
                     size-(blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes)
                );
+               if(size-(blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32 + 8 + statusBytes)==0){
+                    printf(" >> ::PERFECT!::");/* nothing was lost in the void! */
+               }
+               printf("\n");
                #endif
                /* TODO: I can compare bytes lost in the void and status BITS left, and try to reclaim part/all of that space */
           
-          /* write size metadata */     
+          /* TODO: often using only one of the two bytes for each size-data;
+             it'd be possible to reclaim those bytes using a status-byte, 4x 2-bits blocks, to tell how many bytes is big each size-data
+             example: (this is the best alloc I can make before needing more than 256bytes to store the qty of block4s)
+             ==supaPool:: [4110b]request at [0]addr >> [255x]blocks4 [127x]blocks8 [63x]blocks16 [31x]blocks32
+               totUsable[4036b] metadata[8b] (476x)statuses[60b](4B left) >> tot[4104b] >> [74b]less than requested >> [6b]lost in the void
+             if I make a bigger one, like 4200b;
+             ==supaPool:: [4200b]request at [0]addr >> [261x]blocks4 [130x]blocks8 [64x]blocks16 [31x]blocks32
+               totUsable[4100b] metadata[8b] (486x)statuses[61b](2B left) >> tot[4169b] >> [100b]less than requested >> [31b]lost in the void
+             - normal size-data:
+               uint16 uint16 uint16 uint16 >> 8b
+             - flagged size-data:
+               status_byte uint16 uint8 uint8 uint8 >> 6b LoL how shitty! maybe it's not worth implementing this optimization...
+             - on embedded, using a 1024b pool:
+               ==supaPool:: [1024b]request at [0]addr >> [63x]blocks4 [31x]blocks8 [15x]blocks16 [8x]blocks32
+                 totUsable[996b] metadata[8b] (117x)statuses[15b](3B left) >> tot[1019b] >> [28b]less than requested >> [5b]lost in the void
+               * normal: 8b
+               * flagged: status uint8 uint8 uint8 >> 5b ... still shitty LoL
+          */
+          
+          /* writing size metadata */
           mem[addr]=getHiByte(blocks4);
           mem[addr+1]=getLoByte(blocks4);
           mem[addr+2]=getHiByte(blocks8);
@@ -273,15 +302,48 @@ memsize_t supaPool(memaddr_t addr, memsize_t size){
           mem[addr+5]=getLoByte(blocks16);
           mem[addr+6]=getHiByte(blocks32);
           mem[addr+7]=getLoByte(blocks32);
-          /* write status bits; writing all 0's, all blocks are empty right now */
+          /* writing status bits; writing all 0's, all blocks are empty right now */
           for(i=0;i<statusBytes;i++){
                mem[addr+8+i]=B00000000;
           }
           
+          *supaPoolAddr = addr;
           return blocks4*4 + blocks8*8 + blocks16*16 + blocks32*32;/* return total usable allocated memory, in bytes */
+     }/* actual function body */
+}/* supaPool */
+
+memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr){
+     /*kak*/
+
+     if(size<=4){
+          /* alloc a block4 */
+          return 4;
+     }
+     else if((size>4)&(size<=8)){
+          /* alloc a block8 */
+          return 8;
+     }
+     else if((size>8)&(size<=16)){
+          /* alloc a block16 */
+          return 16;
+     }
+     else if((size>16)&(size<=32)){
+          /* alloc a block32 */
+          return 32;
+     }
+     else if(size<=0){
+          printf("::== size too small: [%u]\n", size);
+          return 0;
+     }
+     else if(size>32){
+          printf("::== size too BIG: [%u]\n", size);
+          return 0;
+     }
+     else{
+          printf("::== unknown; size request was [%u]\n", size);
+          return 0;
      }
 }
-
 
 
 /*void freeOnPool(const memaddr_t allocAddr, const poolid_t poolId){*/
