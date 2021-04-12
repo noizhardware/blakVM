@@ -343,6 +343,7 @@ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId){/* gets the (
      uint8_t bitIdOnByte = bitId % 8;
      return (mem[byteAddr] & (B10000000 >> bitIdOnByte))!=0;
      /* unittest:
+     memWipe();
      mem[50] = B10110110;
      mem[51] = B11010010;
      mem[52] = B01011110;
