@@ -119,8 +119,8 @@
      /*void freeOnPool(const memaddr_t allocAddr, const poolid_t poolId);*/
      memsize_t getAllocSize(const memaddr_t memAddr);
      
-     memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr);
-     memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr);
+     static __inline__ memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr);
+     static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr);
      
      blockstatus_t twoBitsfromByte(const uint8_t byte, const uint8_t bitsPos);
      uint8_t setTwoBitsOnByte(const uint8_t byte, const uint8_t bitsPos, const uint8_t bits);
@@ -132,7 +132,14 @@
      uint16_t getBlocksQty(const poolid_t poolId);
      memsize_t getFreeMem(const poolid_t poolId);
      
-     uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId);
+     static __inline__ void setBitOnAddr(const memaddr_t addr, const uint32_t bitId, const uint8_t bit);
+     static __inline__ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId);
+     static __inline__ uint16_t getUint16FromAddr(const memaddr_t addr);
+     
+     static __inline__ uint16_t getUint16FromPtr(const memaddr_t addr);
+     
+     static __inline__ void setUint16OnAddr(const memaddr_t addr, const uint16_t val);
+     
           
      void showmem();
      void showparts();
@@ -144,6 +151,10 @@ int main(){
      /*poolid_t myPool;*/
      memaddr_t mySupaPool = 66;
      memaddr_t myMem;
+     uint16_t* my16BitPtr;
+     
+     memaddr_t myMemDual16a;
+     memaddr_t myMemDual16b;
      
      printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
      setlocale(LC_NUMERIC, "");
@@ -198,14 +209,40 @@ if(supaMalloc(4, mySupaPool, &myMem)){ printf(">> allocation successful at [%u]a
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
                     (supamem_end.tv_nsec - supamem_start.tv_nsec);
-     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);     
+     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
+     
      
      /*mem[myMem] = 99;*/
-     *((uint16_t*)(&mem[myMem]))=256; /* using absolute physical address */
+     *((uint16_t*)(&mem[myMem]))=50000; /* using absolute physical address */
+     printf(">> should be 50000: %u\n", getUint16FromPtr(myMem));
+     
+     my16BitPtr = (uint16_t*)(&mem[myMem]); /* also using absolute physical address */
+     *my16BitPtr = 12000;
+     printf(">> should be 12000: %u\n", *my16BitPtr);
+     printf(">> my16BitPtr size is %lub\n", sizeof(my16BitPtr));/* pointer is bigger than stored value, avoid this, at least for embedded use */
+     
+     setUint16OnAddr(myMem, 64000); /* using custom assign function <<<<< BEST SOLUTION */
+     printf(">> should be 64000: %u\n", getUint16FromAddr(myMem));
+     
+     setUint16OnAddr(myMem+2, 44000); /* using custom assign function */
+     printf(">> should be 44000: %u\n", getUint16FromAddr(myMem+2));
+     
+
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
+if(supaMalloc(4, mySupaPool, &myMemDual16a)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
+     
+     myMemDual16b=myMemDual16a+2;
+     setUint16OnAddr(myMemDual16a, 18000);
+     setUint16OnAddr(myMemDual16b, 17000);
+     printf(">> should be 18000: %u\n", getUint16FromAddr(myMemDual16a));
+     printf(">> should be 17000: %u\n", getUint16FromAddr(myMemDual16b));
+     
      
      showmem();
-     
-     
      
      
      return 0;
@@ -214,7 +251,12 @@ if(supaMalloc(4, mySupaPool, &myMem)){ printf(">> allocation successful at [%u]a
 
 /*** FUNCTION DEFINITIONS */
 
-memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr){ /* make a pool of blocks */
+static __inline__ void setUint16OnAddr(const memaddr_t addr, const uint16_t val){
+     mem[addr]=getHiByte(val);
+     mem[addr+1]=getLoByte(val);
+}
+
+static __inline__ memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPoolAddr){ /* make a pool of blocks */
      /* 4 8 16 32 bytes blocks*/
      /* with a 2-bytes size descriptor I can index a max of 1Mb of physical memory:
           (65536x)[4b] + (32768x)[8b] + (16384x)[16b] + (8192x)[32] >> 1048576b(1024kb)(1Mb)
@@ -338,7 +380,34 @@ memsize_t supaPool(const memaddr_t addr, const memsize_t size, memaddr_t* supaPo
      }/* actual function body */
 }/* supaPool */
 
-uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId){/* gets the (bitId)th bit from addr in mem[] */
+static __inline__ uint16_t getUint16FromPtr(const memaddr_t addr){ /* this is using LO-HI byte order (little-endian), to read standard uint16_t's */
+     return makeUint16(mem[addr+1], mem[addr]);
+}
+static __inline__ uint16_t getUint16FromAddr(const memaddr_t addr){ /* this is using HI-LO byte order (big-endian), that's my standard :) */
+     return makeUint16(mem[addr], mem[addr+1]);
+}
+
+static __inline__ void setBitOnAddr(const memaddr_t addr, const uint32_t bitId, const uint8_t bit){/* sets the (bitId)th bit from addr in mem[] */
+     memaddr_t byteAddr = addr + ceil((float)(bitId+1)/8.) - 1;
+     uint8_t bitIdOnByte = bitId % 8;
+     mem[byteAddr] = (bit) ? (mem[byteAddr] | (B10000000 >> bitIdOnByte)) : (mem[byteAddr] & ~(B10000000 >> bitIdOnByte));
+     /* unittests:
+     memWipe();
+     mem[512]=B10010011;
+     mem[513]=B11011101;
+     setBitOnAddr(512, 0, 0);
+          assert(mem[512], B00010011);
+     setBitOnAddr(512, 0, 1);
+          assert(mem[512], B10010011);
+     setBitOnAddr(512, 7, 0);
+          assert(mem[512], B10010010);
+     setBitOnAddr(512, 8, 0);
+          assert(mem[512], B10010011);
+          assert(mem[513], B01011101);
+     */
+}
+
+static __inline__ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId){/* gets the (bitId)th bit from addr in mem[] */
      memaddr_t byteAddr = addr + ceil((float)(bitId+1)/8.) - 1;
      uint8_t bitIdOnByte = bitId % 8;
      return (mem[byteAddr] & (B10000000 >> bitIdOnByte))!=0;
@@ -347,50 +416,51 @@ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bitId){/* gets the (
      mem[50] = B10110110;
      mem[51] = B11010010;
      mem[52] = B01011110;
-     unittest(getBitFromAddr(50, 0), 1);
-     unittest(getBitFromAddr(50, 1), 0);
-     unittest(getBitFromAddr(50, 2), 1);
-     unittest(getBitFromAddr(50, 3), 1);
-     unittest(getBitFromAddr(50, 4), 0);
-     unittest(getBitFromAddr(50, 5), 1);
-     unittest(getBitFromAddr(50, 6), 1);
-     unittest(getBitFromAddr(50, 7), 0);
-     unittest(getBitFromAddr(50, 8), 1);
-     unittest(getBitFromAddr(50, 9), 1);
-     unittest(getBitFromAddr(50, 10), 0);
-     unittest(getBitFromAddr(50, 11), 1);
-     unittest(getBitFromAddr(50, 12), 0);
-     unittest(getBitFromAddr(50, 13), 0);
-     unittest(getBitFromAddr(50, 14), 1);
-     unittest(getBitFromAddr(50, 15), 0);
-     unittest(getBitFromAddr(50, 16), 0);
-     unittest(getBitFromAddr(50, 17), 1);
-     unittest(getBitFromAddr(50, 18), 0);
-     unittest(getBitFromAddr(50, 19), 1);
-     unittest(getBitFromAddr(50, 20), 1);
-     unittest(getBitFromAddr(50, 21), 1);
-     unittest(getBitFromAddr(50, 22), 1);
-     unittest(getBitFromAddr(50, 23), 0);
+     assert(getBitFromAddr(50, 0), 1);
+     assert(getBitFromAddr(50, 1), 0);
+     assert(getBitFromAddr(50, 2), 1);
+     assert(getBitFromAddr(50, 3), 1);
+     assert(getBitFromAddr(50, 4), 0);
+     assert(getBitFromAddr(50, 5), 1);
+     assert(getBitFromAddr(50, 6), 1);
+     assert(getBitFromAddr(50, 7), 0);
+     assert(getBitFromAddr(50, 8), 1);
+     assert(getBitFromAddr(50, 9), 1);
+     assert(getBitFromAddr(50, 10), 0);
+     assert(getBitFromAddr(50, 11), 1);
+     assert(getBitFromAddr(50, 12), 0);
+     assert(getBitFromAddr(50, 13), 0);
+     assert(getBitFromAddr(50, 14), 1);
+     assert(getBitFromAddr(50, 15), 0);
+     assert(getBitFromAddr(50, 16), 0);
+     assert(getBitFromAddr(50, 17), 1);
+     assert(getBitFromAddr(50, 18), 0);
+     assert(getBitFromAddr(50, 19), 1);
+     assert(getBitFromAddr(50, 20), 1);
+     assert(getBitFromAddr(50, 21), 1);
+     assert(getBitFromAddr(50, 22), 1);
+     assert(getBitFromAddr(50, 23), 0);
      */
 }
 
-memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr){
+static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr){
      /*kak*/
-
+     /* todo: alloc block8, block16 and block32 */
+     /* make function: alloc4xUint16(&var16Ba, &var16Bb, &var16Bc, &var16Bd) >> this will alloc 4x uint16_t's on a block8 */
      
      if(size<=0){
           printf("::== supaMalloc:: requested size is too small: [%u]\n", size);
           return 0;
      }
      else if(size<=4){ /* alloc a block4 */
-          memsize_t block4Qty = makeUint16(mem[supaPoolAddr+2], mem[supaPoolAddr+3]);
+          memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
           memsize_t i;
           /*mem[supaPoolAddr+8+ceil()]*/
           
           for(i=0;i<block4Qty;i++){
                if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
-                    /* TODO: setBitOnAddr */
-                    *blockAddr = supaPoolAddr + makeUint16(mem[supaPoolAddr], mem[supaPoolAddr+1]) + (i*4);
+                    setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
+                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (i*4);
                     return 4;
                }
           }
@@ -429,7 +499,7 @@ memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr
 
 /* cacca: old, only for allocOnPool */
 memsize_t getAllocSize(const memaddr_t memAddr){
-     return makeUint16(mem[memAddr], mem[memAddr]+1);
+     return getUint16FromAddr(memAddr);
 }
 
 
@@ -668,11 +738,11 @@ void showmem(){
 
 /* cacca: old */
 memsize_t getBlockSize(const poolid_t poolId){
-     return makeUint16(mem[pools[poolId]], mem[pools[poolId]+1]);
+     return getUint16FromAddr(pools[poolId]);
 }
 /* cacca: old */
 uint16_t getBlocksQty(const poolid_t poolId){
-     return makeUint16(mem[pools[poolId]+2], mem[pools[poolId]+3]);
+     return getUint16FromAddr(pools[poolId]+2);
 }
 
 void showparts(){
