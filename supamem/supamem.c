@@ -40,9 +40,10 @@
           This approach takes advantage of the deterministic behavior of the partition allocation API call, the robust error handling (e.g. task suspend) and the immunity from fragmentation offered by block memory.
      - supaMalloc - supaFree >> for embedded-friendly, all-memory allocation (you need to define the pool accordingly, before doing supaAlloc-free)
      - make so I can pass a MAX and min block size at pool creation, so eg. I can decide i want (4, 16) >> only 4b, 8b and 16b blocks will be created
+     - to display errors, create and use a throwError function, so the output channel for stderr can change depending on the implementation
 */
 
-#define SUPAMEM_VERSION "2021d12-1453"
+#define SUPAMEM_VERSION "2021d12-2102"
 
 #define SUPAMEM_DEBUG
 
@@ -152,6 +153,10 @@ int main(){
      memaddr_t mySupaPool = 66;
      memaddr_t myMem;
      uint16_t* my16BitPtr;
+     memaddr_t myMem8; /* note: it's good practice to embed variable size in their name */
+     memaddr_t myMem16;
+     memaddr_t myMem32;
+     
      
      memaddr_t myMemDual16a;
      memaddr_t myMemDual16b;
@@ -240,10 +245,32 @@ if(supaMalloc(4, mySupaPool, &myMemDual16a)){ printf(">> allocation successful a
      setUint16OnAddr(myMemDual16b, 17000);
      printf(">> should be 18000: %u\n", getUint16FromAddr(myMemDual16a));
      printf(">> should be 17000: %u\n", getUint16FromAddr(myMemDual16b));
+
+
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
+if(supaMalloc(8, mySupaPool, &myMem8)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
+
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
+if(supaMalloc(16, mySupaPool, &myMem16)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
+
+     clock_gettime(CLOCK_REALTIME, &supamem_start);
+if(supaMalloc(32, mySupaPool, &myMem32)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+     clock_gettime(CLOCK_REALTIME, &supamem_end);
+     supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
+                    (supamem_end.tv_nsec - supamem_start.tv_nsec);
+     printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);     
      
      
      showmem();
-     
+
      
      return 0;
 }
@@ -443,6 +470,7 @@ static __inline__ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bi
      */
 }
 
+/* TODO: should this just return a bool? I'm not really using the memsize_t return value... */
 static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr){
      /*kak*/
      /* todo: alloc block8, block16 and block32 */
@@ -455,8 +483,6 @@ static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t sup
      else if(size<=4){ /* alloc a block4 */
           memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
           memsize_t i;
-          /*mem[supaPoolAddr+8+ceil()]*/
-          
           for(i=0;i<block4Qty;i++){
                if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
                     setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
@@ -469,16 +495,55 @@ static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t sup
           return 0;
      }
      else if((size>4)&(size<=8)){ /* alloc a block8 */
+          memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
+          memsize_t block8Qty = getUint16FromAddr(supaPoolAddr+4);
+          memsize_t i;
+          printf("---------------b8\n");
           
-          return 8;
+          for(i=block4Qty;i<(block4Qty+block8Qty);i++){
+               printf(">>supaMalloc:: block8 >> i[%u]%u\n", i, getBitFromAddr(supaPoolAddr+10, i));
+               if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */ kak - overwrites an already used address
+                    setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
+                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (i*8);
+                    return 8;
+               }
+          }
+          printf("::== supaMalloc:: no blocks of size[8b] available\n");
+          /* TODO: should I then try to alloc it on the next bigger block? let's waste some more memoryyyy! weeeeeee! */
+          return 0;
      }
-     else if((size>8)&(size<=16)){
-          /* alloc a block16 */
-          return 16;
+     else if((size>8)&(size<=16)){ /* alloc a block16 */
+          memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
+          memsize_t block8Qty = getUint16FromAddr(supaPoolAddr+4);
+          memsize_t block16Qty = getUint16FromAddr(supaPoolAddr+6);
+          memsize_t i;
+          for(i=block4Qty+block8Qty;i<(block4Qty+block8Qty+block16Qty);i++){
+               if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
+                    setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
+                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + (i*16);
+                    return 16;
+               }
+          }
+          printf("::== supaMalloc:: no blocks of size[16b] available\n");
+          /* TODO: should I then try to alloc it on the next bigger block? let's waste some more memoryyyy! weeeeeee! */
+          return 0;
      }
-     else if((size>16)&(size<=32)){
-          /* alloc a block32 */
-          return 32;
+     else if((size>16)&(size<=32)){ /* alloc a block32 */
+          memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
+          memsize_t block8Qty = getUint16FromAddr(supaPoolAddr+4);
+          memsize_t block16Qty = getUint16FromAddr(supaPoolAddr+6);
+          memsize_t block32Qty = getUint16FromAddr(supaPoolAddr+8);
+          memsize_t i;
+          for(i=block4Qty+block8Qty+block16Qty;i<(block4Qty+block8Qty+block16Qty+block32Qty);i++){
+               if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
+                    setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
+                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + (block8Qty*16) + (i*32);
+                    return 32;
+               }
+          }
+          printf("::== supaMalloc:: no blocks of size[32b] available\n");
+          /* TODO: should I then try to alloc it on the next bigger block? let's waste some more memoryyyy! weeeeeee! */
+          return 0;
      }
      else if(size>32){
           printf("::== supaMalloc:: requested size is too BIG: [%u]\n", size);
