@@ -43,7 +43,7 @@
      - to display errors, create and use a throwError function, so the output channel for stderr can change depending on the implementation
 */
 
-#define SUPAMEM_VERSION "2021d12-2102"
+#define SUPAMEM_VERSION "2021d13-0945"
 
 #define SUPAMEM_DEBUG
 
@@ -144,6 +144,8 @@
           
      void showmem();
      void showparts();
+     static __inline__ void supaShowPool(const memaddr_t supaPoolAddr);
+     
      
 /* FUNCTION DECLARATIONS end. */
 
@@ -248,28 +250,32 @@ if(supaMalloc(4, mySupaPool, &myMemDual16a)){ printf(">> allocation successful a
 
 
      clock_gettime(CLOCK_REALTIME, &supamem_start);
-if(supaMalloc(8, mySupaPool, &myMem8)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+if(supaMalloc(8, mySupaPool, &myMem8)){ printf(">> allocation successful at [%u]addr\n", myMem8);};
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
                     (supamem_end.tv_nsec - supamem_start.tv_nsec);
      printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
 
      clock_gettime(CLOCK_REALTIME, &supamem_start);
-if(supaMalloc(16, mySupaPool, &myMem16)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+if(supaMalloc(16, mySupaPool, &myMem16)){ printf(">> allocation successful at [%u]addr\n", myMem16);};
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
                     (supamem_end.tv_nsec - supamem_start.tv_nsec);
      printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);
 
      clock_gettime(CLOCK_REALTIME, &supamem_start);
-if(supaMalloc(32, mySupaPool, &myMem32)){ printf(">> allocation successful at [%u]addr\n", myMemDual16a);};
+if(supaMalloc(32, mySupaPool, &myMem32)){ printf(">> allocation successful at [%u]addr\n", myMem32);};
      clock_gettime(CLOCK_REALTIME, &supamem_end);
      supamem_time_spent = ((supamem_end.tv_sec - supamem_start.tv_sec) * 1000000000) +
                     (supamem_end.tv_nsec - supamem_start.tv_nsec);
      printf(">>>>>>>>>>>>supaMalloc took %'.0f nsec\n", supamem_time_spent);     
      
+     mem[myMem8]=8;
+     mem[myMem16]=16;
+     mem[myMem32]=32;
      
      showmem();
+     supaShowPool(mySupaPool);
 
      
      return 0;
@@ -470,6 +476,31 @@ static __inline__ uint8_t getBitFromAddr(const memaddr_t addr, const uint32_t bi
      */
 }
 
+static __inline__ void supaShowPool(const memaddr_t supaPoolAddr){
+     memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
+     memsize_t block8Qty = getUint16FromAddr(supaPoolAddr+4);
+     memsize_t block16Qty = getUint16FromAddr(supaPoolAddr+6);
+     memsize_t block32Qty = getUint16FromAddr(supaPoolAddr+8);
+     uint32_t i;
+     
+     printf("==SUPApool at[%u]:: b4[%u] b8[%u] b16[%u] b32[%u]\n== ", supaPoolAddr, block4Qty, block8Qty, block16Qty, block32Qty);
+     for(i=0;i<(uint32_t)(block4Qty+block8Qty+block16Qty+block32Qty);i++){
+          if(i<(uint32_t)block4Qty){ printf("4");}
+          else if((i>=(uint32_t)block4Qty)&(i<(uint32_t)(block4Qty+block8Qty))){ printf("8");}
+          else if((i>=(uint32_t)(block8Qty+block4Qty))&(i<(uint32_t)(uint32_t)(block8Qty+block4Qty+block16Qty))){ printf("a");}
+          else if((i>=(uint32_t)(block8Qty+block4Qty+block16Qty))&(i<(uint32_t)(block8Qty+block4Qty+block16Qty+block32Qty))){ printf("P");}
+          if((i+1)%4==0){ printf (" ");}
+     }
+     printf("\n== ");
+     for(i=0;i<(uint32_t)(block4Qty+block8Qty+block16Qty+block32Qty);i++){
+          if(getBitFromAddr(supaPoolAddr+10, i)==BLOCK_EMPTY){ printf(".");}
+          if(getBitFromAddr(supaPoolAddr+10, i)==BLOCK_FULL){ printf("x");}
+          if(getBitFromAddr(supaPoolAddr+10, i)==BLOCK_NEXT){ printf("N");}
+          if((i+1)%4==0){ printf (" ");}
+     }
+     printf("\n");
+}
+
 /* TODO: should this just return a bool? I'm not really using the memsize_t return value... */
 static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t supaPoolAddr, memaddr_t* blockAddr){
      /*kak*/
@@ -498,13 +529,10 @@ static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t sup
           memsize_t block4Qty = getUint16FromAddr(supaPoolAddr+2);
           memsize_t block8Qty = getUint16FromAddr(supaPoolAddr+4);
           memsize_t i;
-          printf("---------------b8\n");
-          
           for(i=block4Qty;i<(block4Qty+block8Qty);i++){
-               printf(">>supaMalloc:: block8 >> i[%u]%u\n", i, getBitFromAddr(supaPoolAddr+10, i));
-               if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */ kak - overwrites an already used address
+               if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
                     setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
-                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (i*8);
+                    *blockAddr = getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + ((i-block4Qty)*8);
                     return 8;
                }
           }
@@ -520,7 +548,7 @@ static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t sup
           for(i=block4Qty+block8Qty;i<(block4Qty+block8Qty+block16Qty);i++){
                if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
                     setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
-                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + (i*16);
+                    *blockAddr = getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + ((i-block4Qty-block8Qty)*16);
                     return 16;
                }
           }
@@ -537,7 +565,7 @@ static __inline__ memsize_t supaMalloc(const memsize_t size, const memaddr_t sup
           for(i=block4Qty+block8Qty+block16Qty;i<(block4Qty+block8Qty+block16Qty+block32Qty);i++){
                if(!getBitFromAddr(supaPoolAddr+10, i)){/* status bit==0 >> block is free! */
                     setBitOnAddr(supaPoolAddr+10, i, 1);/* status bit==1 >> block is now set as full */
-                    *blockAddr = supaPoolAddr + getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + (block8Qty*16) + (i*32);
+                    *blockAddr = getUint16FromAddr(supaPoolAddr) + (block4Qty*4) + (block8Qty*8) + (block16Qty*16) + ((i-block4Qty-block8Qty-block16Qty)*32);
                     return 32;
                }
           }
