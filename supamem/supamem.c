@@ -74,6 +74,8 @@
 
 /*** INCLUDES */
 #define _POSIX_C_SOURCE 199309L
+/*#define _POSIX_C_SOURCE 200809L*/ /* for getline() and getdelim() */
+
      #include <stdio.h>
      #include <stdint.h>
      #include <math.h>
@@ -164,7 +166,7 @@ int main(){
      memaddr_t myMemDual16b;
      
      printf("== SUPAMEM v. %s==\n", SUPAMEM_VERSION);
-     setlocale(LC_NUMERIC, "");
+     setlocale(LC_NUMERIC, ""); /* to get comma thousand separators for large numbers */
 
      /*showmem();*/
 
