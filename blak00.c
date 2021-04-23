@@ -1,4 +1,4 @@
-#define BLAK00_VERSION "2021d09-1052"
+#define BLAK00_VERSION "2021d23-2217"
 /*** DEFINES */
      /*#define DEBUG*/
      #define BLAK_OUT_TERMINAL /* if we have a regular, printf-capable stdout interface */
@@ -8,6 +8,8 @@
      /*#define BLAK_OUT_DISPLAY_LCD*/ /* for nyx */
      
      #define BLAK_IN_TERMINAL /* regular stdin for text input */
+     
+     #define BLAK_PC_FILESYSTEM /* regular filesystem with file access (to load bytecode ROMs) */
      
      /* poi cmq andranno fatte delle build separate per ogni hardware, come ogni VM che si rispetti :)) */
      
@@ -67,8 +69,6 @@ int main(){
      bytecode_t bytecodesQty = BLAK_BYTECODES_QTY;
      valType_t typesQty = BLAK_TYPES_QTY;
      
-     char fileBuf[1024];
-     
      /*char* inputBuffer;*/
      /*char* currentLine;*/
 
@@ -77,36 +77,52 @@ int main(){
      printf("== blaK00.c v.%s ==\n", BLAK00_VERSION);
      printf("=============================\n\n");
      printf("== VIRTUAL MEMORY (%u bytes)\n", BLAK_MEM_SIZE);
+     printf("== VIRTUAL PROGRAM MEMORY (%u bytes)\n", BLAK_PROGMEM_SIZE);
      printf("== REGISTERS (%u x %u bytes) >> %u bytes\n", BLAK_REGISTERS_QTY, sizeof(register_t), sizeof(reg));
      printf("== FLAGS (%u x 1bit) >> %u bytes\n", BLAK_FLAGS_QTY, sizeof(blak_flags));
-     printf("== total: %u bytes (%.2fkb)\n", BLAK_MEM_SIZE+sizeof(reg)+sizeof(blak_flags), (float)(BLAK_MEM_SIZE+sizeof(reg)+sizeof(blak_flags))/1024);
+     printf("== total: %u bytes (%.2fkb)\n",
+          BLAK_MEM_SIZE+
+          BLAK_PROGMEM_SIZE+
+          sizeof(reg)+
+          sizeof(blak_flags),
+               (float)(BLAK_MEM_SIZE+BLAK_PROGMEM_SIZE+sizeof(reg)+sizeof(blak_flags))/1024);
      printf("== [%u] instructions (bytecode_t size: %u bytes)\n", bytecodesQty, sizeof(bytecode_t));
      printf("== [%u] types (valType_t size: %u bytes)\n", typesQty, sizeof(valType_t));
      
      #ifdef BRANCH
-          printf("== branching version\n");
+          printf("== branching version\n\n");
      #endif
      #ifndef BRANCH
-          printf("== NON-branching version\n");
+          printf("== NON-branching version\n\n");
      #endif
      
      #ifdef TEST
           startTimer();
      #endif
      
-     fileRead_nomalloc("test.blb", fileBuf);
-     eval((bytecode_t*)fileBuf);
-          
+     printf("==loading test.blb...");
+     /*fileRead_nomalloc("test.blb", (char*)progMem);*/
+     loadProg("test.blb");
+     /*progMemPtr=0;*/
+     printf(" >>> ");
+     errorPrint(eval());
+     printf("\n");
+
      #ifdef TEST
           stopTimer();
      #endif
      
-     fileRead_nomalloc("showers.blb", fileBuf);
-     eval((bytecode_t*)fileBuf);
+     printf("==loading showers.blb...");
+     /*fileRead_nomalloc("showers.blb", (char*)progMem);*/
+     loadProg("showers.blb");
+     /*progMemPtr=0;*/
+     printf(" >>> ");
+     errorPrint(eval());
+     printf("\n");
      
      #ifdef TEST
           printf("==EVALed in: %.3fmsec\n", (float)(((float)elapsed().tv_sec*1000)+((float)elapsed().tv_usec/1000)) );
-     #endif     
+     #endif
      
 return 0;}
 /* MAIN end. */

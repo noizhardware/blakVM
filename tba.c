@@ -1,16 +1,19 @@
-/* Awesome Blak Compiler */
+/* Toluene Blak Assembler */
+#define TBA_VERSION "2021d23-2346"
 
 /*** TODO
+     - NAMCO: named constant: da usare solo nell'assembly, abc convertirà tutte le occorrenze di quella roba con l'altra roba, come #define in C
+          però NON è come il preprocessor, qui avviene in ordine(forward reference only)
+          la differenza con df è che df lasia il binding tra nome e valore accesisbile all'utente e al programma, mentre namco no, viene perso durante l'assembling
+          .namco ciccetto 66 --every occurrence of "ciccetto" will be swapped with 66 before assembling
      - flag isaname -- per specificare che ci sarà un nome, anche se sembra un op o qualcosaltro
      - flag needRegnameT -- fer flaggare direttamente se avro bisogno o no di prependare BLAK_REGNAME_T ad un regname
 */
 
-#define ABC_VERSION "2021c10-2204"
-
 /*** DEFINES */
-     #define BLAK_BLA_MAX_LINE_LEN 80
-     #define BLAK_BLA_MAX_OPCODE_LEN 16
-     #define BLAK_BLA_MAX_OPCODES_PER_LINE 32
+     #define BLAK_BLA_MAX_LINE_LEN 128
+     #define BLAK_BLA_MAX_OPCODE_LEN 32
+     #define BLAK_BLA_MAX_OPCODES_PER_LINE 64
      #define BLAK_BLB_MAX_BYTECODES_PER_LINE 64
      #define BLAK_BLB_MAX_FILENAME_LEN 32
 /* DEFINES end. */
@@ -259,7 +262,7 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                          bytecodeLine[bytecodeLineIndex]=(uint8_t)(numba & 0x00FF); /* write LSB to bytecode */
                     }
                } /* is a number */
-               else{ /* soooo.. it must be a name */
+               else{ /* not an opcode, not a number, soooo... it must be a name! */
                     uint8_t namIndex;
                     printf("==bla_to_blb: must be a name:\"%s\" >> ", opcodeLine[opcodeLineIndex]);
                     /*printf("-1(%d)|%u|-2()%d|%u|", bytecodeLineIndex-1, bytecodeLine[bytecodeLineIndex-1], bytecodeLineIndex-2, bytecodeLine[bytecodeLineIndex-2]);*/
@@ -322,11 +325,14 @@ int main(int argc, char* argv[]){
 
      char fileIn[BLAK_BLB_MAX_FILENAME_LEN];
      char fileOut[BLAK_BLB_MAX_FILENAME_LEN];
+     
+     (void)blak_flags;
 
-     printf("=============================\n");
-     printf("==  Awesome Blak Compiler  ==\n");
-     printf("==  version %s   ==\n", ABC_VERSION);
-     printf("=============================\n");
+     printf("==============================\n");
+     printf("==  Toluene Blak Assembler  ==\n");
+     printf("==   version %s   ==\n", TBA_VERSION);
+     printf("==  blaK Win v.%s ==\n", BLAK_VERSION);
+     printf("==============================\n");
      printf("== MAX_LINE_LEN: %u\n", BLAK_BLA_MAX_LINE_LEN);
      printf("== MAX_OPCODE_LEN: %u\n", BLAK_BLA_MAX_OPCODE_LEN);
      printf("== MAX_OPCODES_PER_LINE: %u\n", BLAK_BLA_MAX_OPCODES_PER_LINE);
@@ -340,6 +346,7 @@ int main(int argc, char* argv[]){
      printf("== BLAK_LAMBDA : %u\n", BLAK_LAMBDA);
      printf("== BLAK_LAMBDAARG_T : %u\n", BLAK_LAMBDAARG_T);
      printf("== BLAK_SET_NAME : %u\n", BLAK_SET_NAME);
+     printf("== BLAK_ENDOFBYTECODE : %u\n", BLAK_ENDOFBYTECODE);
 
      printf("\n");
 
@@ -347,7 +354,7 @@ int main(int argc, char* argv[]){
           sprintf(fileIn, "%s.bla", argv[1]);
           sprintf(fileOut, "%s.blb", argv[1]);
      }
-     printf("==compiling %s >> %s ...\n", fileIn, fileOut);
+     printf("==assembling %s >> %s ...\n", fileIn, fileOut);
 
      line[0]='\0'; /* init */
      fptrIn = fopen(fileIn, "r");
@@ -402,9 +409,11 @@ int main(int argc, char* argv[]){
 
      fclose(fptrOut);
      fclose(fptrIn);
+     
+     printf("==DONE!\n");
 
-     (void)argc;
-     (void)argv;
+     /*(void)argc;*//* cacca: why void? I'm using them */
+     /*(void)argv;*/
      return 0;
 }
 /* MAIN end. */

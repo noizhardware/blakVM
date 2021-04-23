@@ -1,33 +1,31 @@
+#define BLAK_VERSION "2021d23-2346"
+
 /***
 
-https://wiki.xxiivv.com/site/gyo.html
-https://git.sr.ht/~rabbits/gyo/tree/master/cpu.c
+- bytecode is stored in eeprom (or in a file, for a regular computer)
+     and then it's loaded into progMem
+     data memory and program memory are separated
+     HARVARD ARCHITECTURE https://en.wikipedia.org/wiki/Harvard_architecture
 
-sequential stack (non stack-like) ???????
 
-bottom of stack = STACK[255]
-
-* (178x) 32-bit float registers [REG[0]..REG[127]] >> [-32,768..32,767]
-* (16x) 1-bit flags [REG_FLAGS]>>[FLAG_1..FLAG_16]
 * 8-bit instructions (set of 256)
-
-- Arduino Micro : SRAM 2.5 KB (ATmega32U4)
-     + 256b for instruction stack >> 256 instructions program length (MAX_STACK)
-     + 712b for GP registers
-     + 2b for flags
-     + 7b other registers
-     + total of 977, round up to next power of two, 1024b reserved for the VM, that's 1kb
-     + 47b remaining
-
-- instructions refer to register numbers to retreive variable data
-
-register_t :
+* named registers: register_t :
   char name[4]
   valType_t valType
   regValue_t value
-REG[register number here]
 
-56x 9b REGISTERS >> 504b
+- register_t reg[BLAK_REGISTERS_QTY]
+- mem_t mem[BLAK_MEM_SIZE]
+- bytecode_t progMem[BLAK_PROGMEM_SIZE]
+- memPtr_t memPtr = 0
+- memPtr_t progMemPtr = 0
+
+- Arduino Micro (ATmega32U4) :
+     Flash Memory : 32 kb (4 kb used by bootloader) >> 28 kb
+     SRAM 2.5 kb
+     EEPROM 1 kb
+
+- instructions refer to register numbers and-or names to retreive variable data
 
 ---
 
@@ -44,13 +42,16 @@ TOT 768 THIS ONE!!!
 */
 
 /*** TODO
+
+     - dual memspace: think again....
+
      - JUMPFLAG -- fatto! blak_flags.jumpFlag
-          sjt set jumpflag true
-          sjf set jumpflag false
-          jmp address unconditional jump
-          jmpt
-          jmpf
-          jmp regname_t regname
+          sjt --set jumpflag true
+          sjf --set jumpflag false
+          jmp address --unconditional jump
+          jmpt address --jump if true
+          jmpf address --jump if false
+          jmp regname_t regname BHOOOOOO
      - WMEM address -- per scrivere direttamente in memoria
      - MMPTR address -- move mem pointer to address
      - minc mdec -- increase-decrease mem pointer
@@ -61,6 +62,7 @@ TOT 768 THIS ONE!!!
           [BLAK_FREEMEM_T][9][BLAK_REGISTERNAME_T][n][a][NIL][BLAK_REGISTERNAME_T][q][NIL]
           il 9 è comprensivo anche del blocco blak_freemem. se avanza spazio verrà freememmato, se è da solo, freemem_single
      - memory fragmentation status analysis - use R:\s\c\colprint.c to color trapped free memory bytes
+     - integrate SUPAMEM
      - PPU - Physics Processing Unit
           - rigid body
           - soft body
@@ -88,20 +90,20 @@ extern "C" {
 #endif
 
 /*** DEFINES */
-#define BLAK_VERSION "2021c10-2241"
 
 #define BLAK_REG_NAME_LEN 4
 #define BLAK_REGISTERS_QTY 48
 #define BLAK_MAX_REGISTERS (REGISTERS_QTY-1)
-#define BLAK_MEM_SIZE 639 /* size of virtual memory */
+#define BLAK_MEM_SIZE 575 /* size of virtual memory */
 #define BLAK_MAX_MEM (BLAK_MEM_SIZE-1) /* memory array range is [0..size-1] */
+#define BLAK_PROGMEM_SIZE 575 /* size of virtual program memory */
 
 /* TODO: ci devono essere dei defined anche all'interno del codice blak stesso, in modo da identificare su che piattaforma sto girando */
 #define BLAK_PLATFORM_WIN10
 /*#define BLAK_PLATFORM_NYX*/
 
-#define BLAK_SIN_AVAILABLE /* regular sinewave engine, not available in nyx */
-#define BLAK_SIN1_AVAILABLE /* 1-bit sinewave engine, available in nyx */
+#define BLAK_SIN_AVAILABLE /* regular sinewave engine, not available on nyx */
+#define BLAK_SIN1_AVAILABLE /* 1-bit sinewave engine, available on nyx */
 /* DEFINES end. */
 
 /*** TYPEDEFS */
@@ -292,9 +294,12 @@ typedef enum __attribute__ ((__packed__)) bytecode_t_{ /* __packed__ keeps the s
 /*** GLOBALS */
      static register_t reg[BLAK_REGISTERS_QTY] /*= {{'\0', '\0', '\0', '\0'}, EMPTY, 0}*/;
      static mem_t mem[BLAK_MEM_SIZE];
+     static bytecode_t progMem[BLAK_PROGMEM_SIZE];
      static memPtr_t memPtr = 0; /* the real and only: points to the first free virtual mem byte */
+     static memPtr_t progMemPtr = 0; /* instruction pointer */
+     
      /* define a structure with bit fields */
-     #define BLAK_FLAGS_QTY 8
+     #define BLAK_FLAGS_QTY 16
      static struct {
           bool jumpFlag : 1;
           bool anotherFlag1 : 1;
@@ -304,7 +309,23 @@ typedef enum __attribute__ ((__packed__)) bytecode_t_{ /* __packed__ keeps the s
           bool anotherFlag5 : 1;
           bool anotherFlag6 : 1;
           bool anotherFlag7 : 1;
+          bool anotherFlag8 : 1;
+          bool anotherFlag9 : 1;
+          bool anotherFlag10 : 1;
+          bool anotherFlag11 : 1;
+          bool anotherFlag12 : 1;
+          bool anotherFlag13 : 1;
+          bool anotherFlag14 : 1;
+          bool anotherFlag15 : 1;
      } blak_flags = {
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
           false,
           false,
           false,
@@ -319,16 +340,47 @@ typedef enum __attribute__ ((__packed__)) bytecode_t_{ /* __packed__ keeps the s
 /*** FUNCTION DECLARATIONS */
      static __inline__ anon_t getReg(regName_t regName);
      static __inline__ uint8_t getRegNum(regName_t regName);
-     static __inline__ void readRegName(bytecode_t byteCode[], uint16_t* bcp, regName_t regName);
-     static __inline__ anon_t eval(bytecode_t byteCode[]);
+     static __inline__ void readRegName(regName_t regName);
+     static __inline__ anon_t eval();
      #ifdef BLAK_OUT_TERMINAL
           static __inline__ void print_valType(valType_t val);
           static __inline__ void print_regName(regName_t regName);
+          static __inline__ void errorPrint(anon_t err);
      #endif /* BLAK_OUT_TERMINAL */
+     #ifdef BLAK_PC_FILESYSTEM
+          static __inline__ void loadProg(char* fileName);
+     #endif /* BLAK_PC_FILESYSTEM */
+          
+     
 /* FUNCTION DECLARATIONS end. */
 
 
 /*** FUNCTION DEFINITIONS */
+
+#ifdef BLAK_PC_FILESYSTEM
+     static __inline__ void loadProg(char* fileName){
+          fileRead_nomalloc(fileName, (char*)(progMem+progMemPtr));
+          /* cacca: no error management */
+     }
+#endif /* BLAK_PC_FILESYSTEM */
+
+#ifdef BLAK_OUT_TERMINAL
+     static __inline__ void errorPrint(anon_t err){
+          if(err.type==BLAK_ERROR_FAIL_T){
+               printf("FAIL");
+          }
+          else if(err.type==BLAK_ERROR_SUCCESS_T){
+               printf("SUCCESS");
+          }
+          else if(err.type==BLAK_ERROR_NEVERRAN_T){
+               printf("NEVERRAN");
+          }
+          else{
+               printf("::non an error message::");
+          }
+     }
+
+#endif
 
 static __inline__ anon_t getReg(regName_t regName_in){
      uint8_t i;
@@ -379,20 +431,20 @@ static __inline__ uint8_t getRegNum(regName_t regName_in){
      return 0;
 }
 
-static __inline__ void readRegName(bytecode_t byteCode[], uint16_t* bcp, regName_t regName_in){ /* fills regName with the name of the register currently pointed at by bcp */
+static __inline__ void readRegName(regName_t regName_in){ /* fills regName_in with the name of the register currently pointed at by the current instruction */
      uint8_t i;
      for(i=0;i<BLAK_REG_NAME_LEN;i++){
-          regName_in[i]=byteCode[*bcp];
-          if(byteCode[*bcp]==NIL){
+          regName_in[i]=progMem[progMemPtr];
+          if(progMem[progMemPtr]==NIL){
                break;
           }
-          *bcp = *bcp+1;
+          progMemPtr++;
      }
 }
 
 
-static __inline__ anon_t eval(bytecode_t byteCode[]){
-     uint16_t bcp = 0; /* bytecode pointer */
+static __inline__ anon_t eval(){
+     /*uint16_t bcp = 0;*/ /* bytecode pointer *//*kak*/
      uint16_t j = 0;
      uint16_t empty_register = 0;
      /*unsigned char name[REG_NAME_LEN]={'\0', '\0', '\0', '\0'};*/
@@ -401,11 +453,11 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
 
      returnValue.type=BLAK_ERROR_NEVERRAN_T;
 
-     while(byteCode[bcp]!=BLAK_ENDOFBYTECODE){
+     while(progMem[progMemPtr]!=BLAK_ENDOFBYTECODE){
           #ifdef DEBUG
-               printf("!!!not a BLAK_ENDOFBYTECODE: %d\n", byteCode[bcp]);
+               printf("!!!not a BLAK_ENDOFBYTECODE: %d\n", progMem[progMemPtr]);
                #endif
-          if(byteCode[bcp]==BLAK_DEFINE){ /* BLAK_DEFINE name type value */
+          if(progMem[progMemPtr]==BLAK_DEFINE){ /* BLAK_DEFINE name type value */
                #ifdef DEBUG
                     printf("!!!BLAK_DEFINE\n");
                     #endif
@@ -413,17 +465,17 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                empty_register=0;
                while(reg[empty_register].type!=BLAK_EMPTY_T){
                     empty_register++;} /* found the first empty register, empty_register now points to it - cacca: e se so tutti pieni? */
-               bcp++; /* advance pointer, will now point to the DF variable name - cacca: manage errors, se il bytecode finisce? */
+               progMemPtr++; /* advance pointer, will now point to the DF variable name - cacca: manage errors, se il bytecode finisce? */
                /* now we start reading the NAME of the define, it can be an unterminated 4-byte sequence, or a NIL-terminated 1, 2 or 3 bytes sequence */
                memset(name, '\0', BLAK_REG_NAME_LEN); /* reset name[] */
 
                for(j=0;j<BLAK_REG_NAME_LEN;j++){
-                    if(byteCode[bcp]!=NIL){
+                    if(progMem[progMemPtr]!=NIL){
                          #ifdef DEBUG
-                              printf("%c", byteCode[bcp]);
+                              printf(">>>>[%u]%c\n", progMemPtr, progMem[progMemPtr]);
                               #endif
-                         name[j]=byteCode[bcp];
-                         bcp+=(j<(BLAK_REG_NAME_LEN-1));
+                         name[j]=progMem[progMemPtr];
+                         progMemPtr+=(j<(BLAK_REG_NAME_LEN-1));
                     }
                }
 
@@ -433,35 +485,35 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     #endif
 
                #ifdef DEBUG
-                    printf("!!!now pointing at: %d\n", byteCode[bcp]);
+                    printf("!!!now pointing at: %d\n", progMem[progMemPtr]);
                     #endif
                /* now I will put name, type and value in the empty register */
                for(j=0;j<BLAK_REG_NAME_LEN;j++){ /* write variable name in register */
                     reg[empty_register].name[j]=name[j];}
-               bcp++; /* advance bytecode pointer, now pointing to valType - cacca: manage errors */
+               progMemPtr++; /* advance bytecode pointer, now pointing to valType - cacca: manage errors */
                #ifdef DEBUG
                     printf("!!!value type: ");
-                    print_valType(byteCode[bcp]);
+                    print_valType(progMem[progMemPtr]);
                     printf("\n");
                     #endif
-               reg[empty_register].type = byteCode[bcp]; /* write the value type into register */
-               bcp++; /* advance pointer, to point to the first byte of the actual value */
+               reg[empty_register].type = progMem[progMemPtr]; /* write the value type into register */
+               progMemPtr++; /* advance pointer, to point to the first byte of the actual value */
                #ifdef DEBUG
-                    printf("!!! raw value: %d\n", byteCode[bcp]);
+                    printf("!!! raw value: %d\n", progMem[progMemPtr]);
                     #endif
                /* now write the value into the register, according to its type */
                if(reg[empty_register].type==BLAK_ADDR_T){/* 16bit, mapped to addr */}
                else if(reg[empty_register].type==BLAK_FLOAT_T){/* float, put in memory and store its address */}
-               else if(reg[empty_register].type==BLAK_UINT8_T){reg[empty_register].value.uint8=byteCode[bcp];}
-               else if(reg[empty_register].type==BLAK_INT8_T){reg[empty_register].value.int8=byteCode[bcp];}
+               else if(reg[empty_register].type==BLAK_UINT8_T){reg[empty_register].value.uint8=progMem[progMemPtr];}
+               else if(reg[empty_register].type==BLAK_INT8_T){reg[empty_register].value.int8=progMem[progMemPtr];}
                else if(reg[empty_register].type==BLAK_UINT16_T){
                     uint16_t temp;
-                    temp = (uint16_t)byteCode[bcp]<<8; /* MSB */
-                    bcp++;
-                    temp += (uint16_t)byteCode[bcp]; /* LSB */
+                    temp = (uint16_t)progMem[progMemPtr]<<8; /* MSB */
+                    progMemPtr++;
+                    temp += (uint16_t)progMem[progMemPtr]; /* LSB */
                     reg[empty_register].value.uint16=temp;
                }
-               else if(reg[empty_register].type==BLAK_INT16_T){reg[empty_register].value.int16=byteCode[bcp];}
+               else if(reg[empty_register].type==BLAK_INT16_T){reg[empty_register].value.int16=progMem[progMemPtr];}
                else if(reg[empty_register].type==BLAK_UINT24_T){/* put in memory and store its address */}
                else if(reg[empty_register].type==BLAK_INT24_T){/* put in memory and store its address */}
                else if(reg[empty_register].type==BLAK_UINT32_T){/* put in memory and store its address */}
@@ -499,30 +551,33 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
 
                else if(reg[empty_register].type==BLAK_EXPR_T){
                     reg[empty_register].value.addr = memPtr; /* the named register will point to the data I'm going to write to virtual mem */
-                    /*bcp++;*/
+                    /*progMemPtr++;*/
                     for(;;){ /* write data into virtual mem */
 			if(memPtr>BLAK_MAX_MEM){ break;} /* shitty error management */
-                         mem[memPtr]=byteCode[bcp]; /* kak cacca: not checking if there's enough space */
+                         mem[memPtr]=progMem[progMemPtr]; /* kak cacca: not checking if there's enough space */
                          memPtr++; /* point to next free byte */
-                         if(byteCode[bcp]==BLAK_ENDOFEXPR){
+                         if(progMem[progMemPtr]==BLAK_ENDOFEXPR){
                               break;
                          }
-                         bcp++;
+                         progMemPtr++;
                     }
                }
                else{
+                    #ifdef BLAK_OUT_TERMINAL
+                         printf("==:: ERROR: memPtr>BLAK_MAX_MEM\n");
+                         #endif
                     returnValue.type=BLAK_ERROR_FAIL_T;
                }
 
                returnValue.type=BLAK_ERROR_SUCCESS_T;
-          }/* if(byteCode[bcp]==BLAK_DEFINE){ */
+          }/* if(progMem[progMemPtr]==BLAK_DEFINE){ */
 
-          else if(byteCode[bcp]==BLAK_UNDEFINE){ /* BLAK_UNDEFINE name */
+          else if(progMem[progMemPtr]==BLAK_UNDEFINE){ /* BLAK_UNDEFINE name */
                regName_t regName = {NIL, NIL, NIL, NIL}; /* it's a pointer, needs initialization */
                uint8_t regNum;
 
-               bcp++;
-               readRegName(byteCode, &bcp, regName);
+               progMemPtr++;
+               readRegName(regName);
                     /*printf("==================== ");
                     print_regName(regName);
                     printf("\n");*/
@@ -532,93 +587,99 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     returnValue.type=BLAK_ERROR_SUCCESS_T;
                }
                else{
+                    #ifdef BLAK_OUT_TERMINAL
+                         printf("==:: ERROR: regNum is 0\n");
+                         #endif
                     returnValue.type=BLAK_ERROR_FAIL_T;
                }
           } /* UNDEFINE name */
 
-          else if(byteCode[bcp]==BLAK_SET_NAME){ /* SET_NAME(regNum, name) */
+          else if(progMem[progMemPtr]==BLAK_SET_NAME){ /* SET_NAME(regNum, name) */
                uint8_t regNum;
                uint8_t i;
 
-               bcp++;
-               regNum=byteCode[bcp];
-               bcp++;
+               progMemPtr++;
+               regNum=progMem[progMemPtr];
+               progMemPtr++;
                for(i=0;i<BLAK_REG_NAME_LEN;i++){
-                    reg[regNum].name[i]=byteCode[bcp];
-                    if(byteCode[bcp]==NIL){
+                    reg[regNum].name[i]=progMem[progMemPtr];
+                    if(progMem[progMemPtr]==NIL){
                          break;
                     }
-                    bcp++;
+                    progMemPtr++;
                }
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_NAME(regNum, name) */
 
-          else if(byteCode[bcp]==BLAK_SET_TYPE){ /* SET_TYPE(regNum, type) */
+          else if(progMem[progMemPtr]==BLAK_SET_TYPE){ /* SET_TYPE(regNum, type) */
                uint8_t regNum;
 
-               bcp++;
-               regNum=byteCode[bcp];
-               bcp++;
-               reg[regNum].type=byteCode[bcp];
+               progMemPtr++;
+               regNum=progMem[progMemPtr];
+               progMemPtr++;
+               reg[regNum].type=progMem[progMemPtr];
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_TYPE(regNum, type) */
 
-          else if(byteCode[bcp]==BLAK_SET_VALUE){ /* SET_VALUE(regNum, mode, val) */
+          else if(progMem[progMemPtr]==BLAK_SET_VALUE){ /* SET_VALUE(regNum, mode, val) */
                uint8_t regNum;
                bytecode_t mode;
 
-               bcp++;
-               regNum=byteCode[bcp];
-               bcp++;
-               mode=byteCode[bcp];
-               bcp++;
+               progMemPtr++;
+               regNum=progMem[progMemPtr];
+               progMemPtr++;
+               mode=progMem[progMemPtr];
+               progMemPtr++;
                if(mode==BLAK_BYTE1){
-                    reg[regNum].value.uint8=byteCode[bcp];
+                    reg[regNum].value.uint8=progMem[progMemPtr];
                }
                else if(mode==BLAK_BYTE2){
-                    uint16_t newVal = byteCode[bcp]<<8; /* get MSB */
-                    bcp++;
-                    newVal |= byteCode[bcp]; /* get LSB */
+                    uint16_t newVal = progMem[progMemPtr]<<8; /* get MSB */
+                    progMemPtr++;
+                    newVal |= progMem[progMemPtr]; /* get LSB */
                     reg[regNum].value.uint16=newVal;
                }
                else{
+                    #ifdef BLAK_OUT_TERMINAL
+                         printf("==:: ERROR: unrecognized type: mode==%d\n", mode);
+                         #endif
                     returnValue.type=BLAK_ERROR_FAIL_T;
                }
                returnValue.type=BLAK_ERROR_SUCCESS_T;
           } /* SET_VALUE(regNum, mode, val) */
 
           #ifdef BLAK_OUT_TERMINAL
-               else if(byteCode[bcp]==BLAK_SAY){ /* print to screen */ /* cacca: forse questa presuppone l'esistenza di eval, ma eval quello vero? */
-                    bcp++;
-                    if((valType_t)byteCode[bcp]==BLAK_ADDR_T){
+               else if(progMem[progMemPtr]==BLAK_SAY){ /* print to screen */ /* cacca: forse questa presuppone l'esistenza di eval, ma eval quello vero? */
+                    progMemPtr++;
+                    if((valType_t)progMem[progMemPtr]==BLAK_ADDR_T){
                          uint8_t up;
                          uint8_t dn;
-                         bcp++;
-                         up = byteCode[bcp];
-                         bcp++;
-                         dn = byteCode[bcp];
+                         progMemPtr++;
+                         up = progMem[progMemPtr];
+                         progMemPtr++;
+                         dn = progMem[progMemPtr];
                          printf(">> addr[%u] >> ", (up<<8)+dn);
-                         bcp++;
+                         progMemPtr++;
                          /* cacca : qui dovrei mettere il ricorsivo "say next-byte" */
                     }
-                    else if((valType_t)byteCode[bcp]==BLAK_UINT8_T){
-                         bcp++;
-                         printf(">> [BLAK_UINT8_T] %u\n", byteCode[bcp]);
+                    else if((valType_t)progMem[progMemPtr]==BLAK_UINT8_T){
+                         progMemPtr++;
+                         printf(">> [BLAK_UINT8_T] %u\n", progMem[progMemPtr]);
                     }
-                    else if((valType_t)byteCode[bcp]==BLAK_INT8_T){
-                         bcp++;
-                         printf(">> [BLAK_INT8_T] %d\n", byteCode[bcp]);
+                    else if((valType_t)progMem[progMemPtr]==BLAK_INT8_T){
+                         progMemPtr++;
+                         printf(">> [BLAK_INT8_T] %d\n", progMem[progMemPtr]);
                     }
-                    else if((valType_t)byteCode[bcp]==BLAK_REGISTERNAME_T){
+                    else if((valType_t)progMem[progMemPtr]==BLAK_REGISTERNAME_T){
                          regName_t regName = {NIL, NIL, NIL, NIL}; /* it's a pointer, needs initialization */
                          uint8_t i;
-                         bcp++;
+                         progMemPtr++;
                          for(i=0;i<BLAK_REG_NAME_LEN;i++){
-                              regName[i]=byteCode[bcp];
-                              if(byteCode[bcp]==NIL){
+                              regName[i]=progMem[progMemPtr];
+                              if(progMem[progMemPtr]==NIL){
                                    break;
                               }
-                              bcp++;
+                              progMemPtr++;
                          }
                          printf(">> [BLAK_REGISTERNAME_T] \"");
                          print_regName(regName);
@@ -640,11 +701,11 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     returnValue.type=BLAK_ERROR_SUCCESS_T;
                } /* SAY - print to screen */
 
-               else if(byteCode[bcp]==BLAK_SHOWREGS){ /* show registers */
+               else if(progMem[progMemPtr]==BLAK_SHOWREGS){ /* show registers */
                     uint16_t i;
                     printf("\n== REGISTERS (%u x %u bytes) >> %u bytes:\n", BLAK_REGISTERS_QTY, sizeof(register_t), sizeof(reg));
                     for(i=0;i<BLAK_REGISTERS_QTY;i++){
-                         printf("== reg[%d] >> \"%c%c%c%c\" [", i, reg[i].name[0], reg[i].name[1], reg[i].name[2], reg[i].name[3]);
+                         printf("== reg[%02d] >> \"%c%c%c%c\" [", i, reg[i].name[0], reg[i].name[1], reg[i].name[2], reg[i].name[3]);
                          print_valType(reg[i].type);
                          if(reg[i].type==BLAK_UINT8_T || reg[i].type==BLAK_EXPR_T || reg[i].type==BLAK_EMPTY_T){
                               printf("] %d\n", reg[i].value.uint8);
@@ -655,30 +716,64 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
                     }
                } /* show registers */
 
-               else if(byteCode[bcp]==BLAK_SHOWMEM){ /* show virtual memory */
+               else if(progMem[progMemPtr]==BLAK_SHOWMEM){ /* show virtual memory */
                     uint32_t i; /* 32bits, so it can handle huuuuge memsizes */
                     uint8_t memString[17];
                     uint8_t widecharIndex;
 
                     memString[16]='\0'; /* terminate string */
-                    printf("\n== VIRTUAL MEMORY (%u bytes) ptr:[%u]\n", BLAK_MEM_SIZE, memPtr);
+                    printf("\n== VIRTUAL MEMORY (%u bytes) ptr:[%u] (%.2f%% free)\n", BLAK_MEM_SIZE, memPtr, (float)(BLAK_MEM_SIZE-memPtr)/BLAK_MEM_SIZE*100);
                     /*printf("(00)(01)(02)(03)(04)(05)(06)(07)(08)(09)(10)(11)(12)(13)(14)(15)\n");*/
                     for(i=0;i<BLAK_MEM_SIZE;i++){
                          if(i%16==0){
                               printf(" ");
                          }
                          if(i==memPtr){ printf("\b[");}
-                         printf("%02X", mem[i]); /* hex */
-                         /*printf("%u", mem[i]);*/ /* decimal */
+                         /*printf("%02X", mem[i]);*/ /* hex */
+                         printf("%3u", mem[i]); /* decimal */
                          if(i==memPtr){ printf("] ");}
                               else{ printf("  ");}
                          /*memString[i%16]= ((mem[i]>31 && mem[i]<127) || mem[i]>160) ? mem[i] : '.';*/
                          memString[i%16]= mem[i];
                          if(i%16==15){
                               /*printf("\b(%u) (%u-%u) %04X-%04X : ", i-15, i-15, i, i-15, i);*/
-                              printf("\b(%u-%u) %04X-%04X : ", i-15, i, i-15, i);
+                              printf("\b(%04u-%04u) %04X-%04X : ", i-15, i, i-15, i);
                               for(widecharIndex=0;widecharIndex<16;widecharIndex++){
-                                   wprintf(L"%lc", (wchar_t)memString[widecharIndex]);
+                                   if(memString[widecharIndex]==10){/* skip newline */
+                                        printf("*");
+                                   }
+                                   else{
+                                        wprintf(L"%lc", (wchar_t)memString[widecharIndex]);
+                                   }
+                              }
+                              printf("\n");
+                         }
+                    }
+                    printf("\n");
+                    
+                    memString[16]='\0'; /* terminate string */
+                    printf("\n== VIRTUAL PROGRAM MEMORY (%u bytes) ptr:[%u] (%.2f%% free)\n", BLAK_PROGMEM_SIZE, progMemPtr, (float)(BLAK_PROGMEM_SIZE-progMemPtr)/BLAK_PROGMEM_SIZE*100);
+                    /*printf("(00)(01)(02)(03)(04)(05)(06)(07)(08)(09)(10)(11)(12)(13)(14)(15)\n");*/
+                    for(i=0;i<BLAK_PROGMEM_SIZE;i++){
+                         if(i%16==0){
+                              printf(" ");
+                         }
+                         if(i==progMemPtr){ printf("\b[");}
+                         /*printf("%02X", progMem[i]);*/ /* hex */
+                         printf("%3u", progMem[i]); /* decimal */
+                         if(i==progMemPtr){ printf("] ");}
+                              else{ printf("  ");}
+                         memString[i%16]= progMem[i];
+                         if(i%16==15){
+                              /*printf("\b(%u) (%u-%u) %04X-%04X : ", i-15, i-15, i, i-15, i);*/
+                              printf("\b(%04u-%04u) %04X-%04X : ", i-15, i, i-15, i);
+                              for(widecharIndex=0;widecharIndex<16;widecharIndex++){
+                                   if(memString[widecharIndex]==10){/* skip newline */
+                                        printf("*");
+                                   }
+                                   else{
+                                        wprintf(L"%lc", (wchar_t)memString[widecharIndex]);
+                                   }
                               }
                               printf("\n");
                          }
@@ -689,14 +784,19 @@ static __inline__ anon_t eval(bytecode_t byteCode[]){
           #endif /* BLAK_OUT_TERMINAL */
 
           else{
+               #ifdef BLAK_OUT_TERMINAL
+                    printf("==:: ERROR: unrecognized bytecode: [%u]%u\n", progMemPtr, progMem[progMemPtr]);
+                    /*TODO: sprintf the error message to a buffer, to be displayed ONLY if the function actually returns error at the end */
+                    #endif
                returnValue.type=BLAK_ERROR_FAIL_T;
           }
 
-          bcp++; /* advance pointer for the next cycle */
-     } /* while(byteCode[bcp]!=ENDOFBYTECODE){ */
+          progMemPtr++; /* advance pointer for the next cycle */
+     } /* while(progMem[progMemPtr]!=ENDOFBYTECODE){ */
      #ifdef DEBUG
           printf("!!! ok I got a BLAK_ENDOFBYTECODE, exiting...\n");
           #endif
+     /*progMemPtr++;*/ /* so now pointer will point at the BLAK_ENDOFBYTECODE */
      return returnValue;
 } /* eval */
 

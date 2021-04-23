@@ -13,3 +13,5 @@ say bla --bla is an expr
 say mah -- nonexistent - just to test
 say dqe --dqe is an expr
 say dbl
+
+showmem --to show memory AFTER the other showers have run

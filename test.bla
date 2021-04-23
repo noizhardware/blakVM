@@ -18,3 +18,22 @@ df dbl expr lamb x lamba + x x lambb eox
 df dqf expr func dbl q eox --double Q calling the function
 df dql expr q lamb x lamba + larg x larg x lambb eox --double Q embedding a lambda
 df dqe expr + q q eox --double Q with a simple expression
+
+--move progmemPtr back to where it was
+-- OR: create flag to turn on-off the permanence of code in progmem
+-- works best in livecoding, but can also work for a program loaded from storage
+
+-- expected:
+-- reg[00] >> "a   " [BLAK_UINT8_T] 55
+-- reg[01] >> "culo" [BLAK_UINT8_T] 130
+-- reg[02] >> "na  " [BLAK_UINT8_T] 66
+-- reg[03] >> "q   " [BLAK_UINT8_T] 45
+-- reg[04] >> "yo! " [BLAK_UINT8_T] 2
+-- reg[05] >> "bla " [BLAK_EXPR_T] 0
+-- reg[06] >> "anus" [BLAK_EXPR_T] 10
+-- reg[07] >> "pils" [BLAK_UINT16_T] 970
+-- reg[08] >> "dbl " [BLAK_EXPR_T] 19
+-- reg[09] >> "dqf " [BLAK_EXPR_T] 33
+-- reg[10] >> "dio " [BLAK_UINT16_T] 3000
+-- reg[11] >> "dql " [BLAK_EXPR_T] 42
+-- reg[12] >> "dqe " [BLAK_EXPR_T] 59
