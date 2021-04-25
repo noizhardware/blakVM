@@ -29,6 +29,7 @@
 */
 
 /*** TODO:
+     - maybe now I can use startTimer() and getTimerMs() for the timing
      - blockid_t getFreeBlocks(poolid_t poolId) tells how many free blocks in pool
      - deterministic? do I know how long does each operation take to complete? is it constant?
           need to calculate big O's of supaMalloc and supaFree (also supaPool, but less important)

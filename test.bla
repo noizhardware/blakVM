@@ -19,6 +19,8 @@ df dqf expr func dbl q eox --double Q calling the function
 df dql expr q lamb x lamba + larg x larg x lambb eox --double Q embedding a lambda
 df dqe expr + q q eox --double Q with a simple expression
 
+df err u8 54 -- to test if value 54(end_of_bytecode) interferes with the process
+
 --move progmemPtr back to where it was
 -- OR: create flag to turn on-off the permanence of code in progmem
 -- works best in livecoding, but can also work for a program loaded from storage

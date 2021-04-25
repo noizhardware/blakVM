@@ -78,6 +78,10 @@ TOT 768 THIS ONE!!!
 #define _BLAK2_H_
 
 /*** INCLUDES */
+     #include <stdint.h>
+     #include <stdbool.h>
+     #include "baofiles.h"
+     
      #ifdef BLAK_OUT_TERMINAL
           #include <stdio.h>
           #include <wchar.h>
