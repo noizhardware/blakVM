@@ -25,7 +25,7 @@
      SRAM 2.5 kb
      EEPROM 1 kb
 
-- instructions refer to register numbers and-or names to retreive variable data
+- instructions refer to register numbers and-or register names to retreive variable data
 
 ---
 
@@ -42,8 +42,10 @@ TOT 768 THIS ONE!!!
 */
 
 /*** TODO
-
-     - dual memspace: think again....
+     - system constants: memsize, registersQty, outpins, I/O memaddr, etc...
+     - dual memspace: think again...the program must be loaded directly from secondary memory
+     * evalFile -- evaluate a bytecode file bytecode byte by byte, so I don't need a ton of memory
+     * evalString -- evaluate a buffer string of bytecodes, this will be used in the REPL, both assembly repl and higher-lang repl
 
      - JUMPFLAG -- fatto! blak_flags.jumpFlag
           sjt --set jumpflag true
@@ -63,6 +65,7 @@ TOT 768 THIS ONE!!!
           il 9 è comprensivo anche del blocco blak_freemem. se avanza spazio verrà freememmato, se è da solo, freemem_single
      - memory fragmentation status analysis - use R:\s\c\colprint.c to color trapped free memory bytes
      - integrate SUPAMEM
+     - integrate ODIN
      - PPU - Physics Processing Unit
           - rigid body
           - soft body
@@ -753,6 +756,24 @@ static __inline__ anon_t eval(){
                               printf("\n");
                          }
                     }
+                    
+                    if(i%16!=16){
+                         uint16_t k;
+                         for(k=0;k<(16-(i%16));k++){
+                              printf("...  ");
+                         }
+                         /*printf("\b(%u) (%u-%u) %04X-%04X : ", i-15, i-15, i, i-15, i);*/
+                         printf("\b(%04u-%04u) %04X-%04X : ", i-(i%16), i+15-(i%16), i-(i%16), i+15-(i%16));
+                         for(widecharIndex=0;widecharIndex<(i%16);widecharIndex++){
+                              if(memString[widecharIndex]==10){/* skip newline */
+                                   printf("*");
+                              }
+                              else{
+                                   wprintf(L"%lc", (wchar_t)memString[widecharIndex]);
+                              }
+                         }
+                         /*printf("\n");*/
+                    }
                     printf("\n");
                     
                     memString[16]='\0'; /* terminate string */
@@ -782,8 +803,26 @@ static __inline__ anon_t eval(){
                               printf("\n");
                          }
                     }
+                    
+                    if(i%16!=16){
+                         uint16_t k;
+                         for(k=0;k<(16-(i%16));k++){
+                              printf("...  ");
+                         }
+                         /*printf("\b(%u) (%u-%u) %04X-%04X : ", i-15, i-15, i, i-15, i);*/
+                         printf("\b(%04u-%04u) %04X-%04X : ", i-(i%16), i+15-(i%16), i-(i%16), i+15-(i%16));
+                         for(widecharIndex=0;widecharIndex<(i%16);widecharIndex++){
+                              if(memString[widecharIndex]==10){/* skip newline */
+                                   printf("*");
+                              }
+                              else{
+                                   wprintf(L"%lc", (wchar_t)memString[widecharIndex]);
+                              }
+                         }
+                         /*printf("\n");*/
+                    }
                     printf("\n");
-               } /* show virtual memory */
+               } /* show virtual memories */
 
           #endif /* BLAK_OUT_TERMINAL */
 
