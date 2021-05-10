@@ -1,25 +1,25 @@
-df cix u8 23
-df culo u8 130
-df na u8 66
-df q u8 45
-df yo! u8 2
-df bla expr + na q eox -- eox should be automatically added at the end of an expr
-df anus expr * bla 12 eox
-df pils u16 970 -- setting with def
+dd cix u8 23
+dd culo u8 130
+dd na u8 66
+dd q u8 45
+dd yo! u8 2
+dd bla expr + na q eox -- eox should be automatically added at the end of an expr
+dd anus expr * bla 12 eox
+dd pils u16 970 -- setting with def
 
 -- comment-only line
-udf cix
-df a u8 55
+uu cix
+dd a u8 55
 sna 10 dio -- raw setting: regname
 sty 10 u16 -- reg type
 sva 10 b2 3000 -- qua forse ha senso usare direttamente u8 u16, ecc, invece di u1 u2 ecc
 
-df dbl expr lamb x lamba + x x lambb eox
-df dqf expr func dbl q eox --double Q calling the function
-df dql expr q lamb x lamba + larg x larg x lambb eox --double Q embedding a lambda
-df dqe expr + q q eox --double Q with a simple expression
+dd dbl expr lamb x lamba + x x lambb eox
+dd dqf expr func dbl q eox --double Q calling the function
+dd dql expr q lamb x lamba + larg x larg x lambb eox --double Q embedding a lambda
+dd dqe expr + q q eox --double Q with a simple expression
 
-df err u8 54 -- to test if value 54(end_of_bytecode) interferes with the process
+dd err u8 54 -- to test if value 54(end_of_bytecode) interferes with the process
 
 --move progmemPtr back to where it was
 -- OR: create flag to turn on-off the permanence of code in progmem

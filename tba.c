@@ -1,5 +1,5 @@
 /* Toluene Blak Assembler */
-#define TBA_VERSION "2021d23-2346"
+#define TBA_VERSION "2021e01-1306"
 
 /*** TODO
      - NAMCO: named constant: da usare solo nell'assembly, abc convertirà tutte le occorrenze di quella roba con l'altra roba, come #define in C
@@ -55,13 +55,13 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
           if(startsWith(opcodeLine[opcodeLineIndex], "--")){ break;} /* skip inline comments */
 
           /*** opcodes */
-          else if(strEqual(opcodeLine[opcodeLineIndex], "df")){
+          else if(strEqual(opcodeLine[opcodeLineIndex], "dd")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_DEFINE;}
-          else if(strEqual(opcodeLine[opcodeLineIndex], "rdf")){
+          else if(strEqual(opcodeLine[opcodeLineIndex], "rr")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_REDEFINE;}
-          else if(strEqual(opcodeLine[opcodeLineIndex], "udf")){
+          else if(strEqual(opcodeLine[opcodeLineIndex], "uu")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_UNDEFINE;}
 
@@ -71,6 +71,7 @@ static __inline__ void bla_to_blb(char opcodeLine[BLAK_BLA_MAX_OPCODES_PER_LINE]
                bytecodeLine[bytecodeLineIndex]=BLAK_UNLOAD;}
           else if(strEqual(opcodeLine[opcodeLineIndex], "hcf")){
                bytecodeLine[bytecodeLineIndex]=BLAK_HCF;}
+               
           else if(strEqual(opcodeLine[opcodeLineIndex], "sna")){
                needRegnameT=false;
                bytecodeLine[bytecodeLineIndex]=BLAK_SET_NAME;}

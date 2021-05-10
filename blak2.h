@@ -7,7 +7,7 @@
      data memory and program memory are separated
      HARVARD ARCHITECTURE https://en.wikipedia.org/wiki/Harvard_architecture
 
-
+     
 * 8-bit instructions (set of 256)
 * named registers: register_t :
   char name[4]
@@ -42,17 +42,28 @@ TOT 768 THIS ONE!!!
 */
 
 /*** TODO
+     - cpu(byte in from file[bytecodePtr]) >> do things, and also advance/move bytecodePtr
+          6502 ha un data bus bidirezionale, per ricevere opcodes da eseguire, e per mandare fuori roba
+          e un output a 16bit con il quale richiede opcodes(come io muovo byteCodePtr e poi leggo l'istruzione da esso puntata)
+     - la funzione eval(addr) deve servire per:
+          copio una BLAK_EXPR_T in un address in mem
+          chiamo eval per quell'indirizzo, e la funzione viene evallata
+          esiste gia l'opcode, è BLAK_EVAL
+     - unnamed 16bit registers:
+          ra rah ral - rx rxh rxl - ry ryh ryl
+          load to registers: lla llah, ecc...
+     
      - system constants: memsize, registersQty, outpins, I/O memaddr, etc...
      - dual memspace: think again...the program must be loaded directly from secondary memory
      * evalFile -- evaluate a bytecode file bytecode byte by byte, so I don't need a ton of memory
      * evalString -- evaluate a buffer string of bytecodes, this will be used in the REPL, both assembly repl and higher-lang repl
 
      - JUMPFLAG -- fatto! blak_flags.jumpFlag
-          sjt --set jumpflag true
-          sjf --set jumpflag false
+          jft --set jumpflag true
+          jff --set jumpflag false
           jmp address --unconditional jump
-          jmpt address --jump if true
-          jmpf address --jump if false
+          jmpt address --jump if jumpflag true
+          jmpf address --jump if jumpflag false
           jmp regname_t regname BHOOOOOO
      - WMEM address -- per scrivere direttamente in memoria
      - MMPTR address -- move mem pointer to address
@@ -65,6 +76,8 @@ TOT 768 THIS ONE!!!
           il 9 è comprensivo anche del blocco blak_freemem. se avanza spazio verrà freememmato, se è da solo, freemem_single
      - memory fragmentation status analysis - use R:\s\c\colprint.c to color trapped free memory bytes
      - integrate SUPAMEM
+          - create an unfragmentable memory system:
+            you need to choose all functions to natively allocate memory in blocks of the same size. nais. poissibol? dunnoh LoL.
      - integrate ODIN
      - PPU - Physics Processing Unit
           - rigid body
@@ -74,7 +87,10 @@ TOT 768 THIS ONE!!!
           - braids
           - physical modeling(audio)
      - tulpa: bel nome da usare, magari per definire una slave machine
-
+     - arc: avicular raven compiler
+     - try:
+       + a dbl function
+       + fibonacci https://youtu.be/yOyaJXpAYZQ
 */
 
 #ifndef _BLAK2_H_
