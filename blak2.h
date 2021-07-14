@@ -2,6 +2,10 @@
 
 /***
 
+- random access file (in embedded it'll be EEPROM)
+http://tutorialtous.com/c/randomaccesstofile.php
+fseek() ftell() rewind()
+
 - bytecode is stored in eeprom (or in a file, for a regular computer)
      and then it's loaded into progMem
      data memory and program memory are separated
@@ -115,7 +119,7 @@ extern "C" {
 /*** DEFINES */
 
 #define BLAK_REG_NAME_LEN 4
-#define BLAK_REGISTERS_QTY 48
+#define BLAK_REGISTERS_QTY 48 /* 8bytes X 48 -> 384bytes tot */
 #define BLAK_MAX_REGISTERS (REGISTERS_QTY-1)
 #define BLAK_MEM_SIZE 575 /* size of virtual memory */
 #define BLAK_MAX_MEM (BLAK_MEM_SIZE-1) /* memory array range is [0..size-1] */
