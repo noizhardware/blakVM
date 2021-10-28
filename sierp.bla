@@ -1,0 +1,11 @@
+-- Sierpinski melody: t&(t>>8)
+
+dd t u16 0
+dd inc expr lamb x lamba + 1 x lambb eox
+dd sier expr lamb x lamba x 8 shr x and lambb eox -- rev polish notation...
+dd sier expr lamb x lamba mu x..shr 8..and x lambb eox -- mu
+
+dd bbt t..inc..sier..o1
+frv bbt -- once it was "go bbt"
+hh bbt
+

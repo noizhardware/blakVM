@@ -3,7 +3,7 @@ dd culo u8 130
 dd na u8 66
 dd q u8 45
 dd yo! u8 2
-dd bla expr + na q eox -- eox should be automatically added at the end of an expr
+dd bla expr + na q eox -- the assembler should automatically add eox at the end of an expr
 dd anus expr * bla 12 eox
 dd pils u16 970 -- setting with def
 

@@ -1,4 +1,6 @@
 New
+- easy port on low-resource MCUs
+- fast native ttl or fpga implementation (no asic)
 
 - 128x64 OLED screen >> 1024bytes 1bit display
 - tiles VRAM: 8x8 tiles:
@@ -17,4 +19,4 @@ New
 tot 1.5kbytes(1536 bytes)
      
      
-- keyboard input buffer
+- keyboard input interrupt
